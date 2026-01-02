@@ -1,0 +1,29 @@
+# Build artifacts
+*.o
+*.so
+*.dylib
+*.mojopkg
+__pycache__/
+*.pyc
+.mojo_cache/
+build/
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.venv/
+venv/
+
+# Test artifacts
+.pytest_cache/
+coverage/

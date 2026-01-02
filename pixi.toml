@@ -1,0 +1,16 @@
+[project]
+name = "mojo-tokenizer"
+version = "0.1.0"
+description = "Pure Mojo tokenizer for LLM inference - BPE, tiktoken, HuggingFace compatible"
+authors = ["Atsentia"]
+channels = ["conda-forge", "https://conda.modular.com/max"]
+platforms = ["osx-arm64", "linux-64"]
+
+[tasks]
+build = "mojo build src -o lib/mojo_tokenizer.mojopkg"
+test = "mojo run tests/test_tokenizer.mojo"
+format = "mojo format src/"
+example = "mojo run examples/basic_usage.mojo"
+
+[dependencies]
+max = ">=24.6,<26"
