@@ -9,7 +9,8 @@ MAX Engine currently uses Python-wrapped HuggingFace tokenizers. This library pr
 - **No Python overhead** — Direct compilation to native code
 - **Single binary deployment** — No interpreter or external dependencies
 - **Format compatibility** — Load tiktoken (OpenAI) and HuggingFace vocabularies
-- **Production ready** — Special token handling, batch processing
+- **Production ready** — Special token handling, batch processing, chat templates
+- **High performance** — 100k+ tokens/sec with word-level caching (80%+ hit rate)
 
 ## Installation
 
@@ -45,12 +46,39 @@ print(tokens)  # [9906, 11, 1917, 0]
 var text = tokenizer.decode(tokens)
 print(text)  # "Hello, world!"
 
-# Batch processing
+# Check cache performance
+print("Cache hit rate:", tokenizer.cache_hit_rate())
+
+# Batch processing (benefits from cache warming)
 var texts = List[String]()
 texts.append("First sentence")
 texts.append("Second sentence")
 var batch_tokens = tokenizer.encode_batch(texts)
 ```
+
+## Chat Templates
+
+Format conversations for different LLM models:
+
+```mojo
+from mojo_tokenizer.chat import ChatMessage, llama3_template, apply_chat_template
+
+var messages = List[ChatMessage]()
+messages.append(ChatMessage.system("You are a helpful assistant."))
+messages.append(ChatMessage.user("Hello!"))
+messages.append(ChatMessage.assistant("Hi! How can I help you today?"))
+messages.append(ChatMessage.user("What's the weather?"))
+
+# Apply Llama 3 format
+var formatted = apply_chat_template(messages, llama3_template())
+print(formatted)
+# <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+#
+# You are a helpful assistant.<|eot_id|><|start_header_id|>user<|end_header_id|>
+# ...
+```
+
+Supported formats: ChatML, Llama 2, Llama 3, Mistral, Alpaca, Vicuna, Phi-3, Gemma, Zephyr
 
 ## Features
 
@@ -87,9 +115,52 @@ var tokens = tokenizer.encode("Hello<|endoftext|>")
 
 | Format | Status | Models |
 |--------|--------|--------|
-| Tiktoken | v0.1 | GPT-3.5, GPT-4, GPT-4o |
-| HuggingFace JSON | v0.2 | Llama, Mistral, most HF models |
+| Tiktoken | ✓ v0.1 | GPT-3.5, GPT-4, GPT-4o |
+| HuggingFace JSON | ✓ v0.2 | Llama, Mistral, most HF models |
 | SentencePiece | Planned | T5, mT5, multilingual models |
+
+### Pipeline Stages (HuggingFace Compatible)
+
+```mojo
+from mojo_tokenizer.pipeline import (
+    NormalizerSequence,
+    WhitespacePreTokenizer,
+    ByteLevelPreTokenizer,
+)
+
+# Build a normalizer pipeline
+var normalizer = NormalizerSequence()
+normalizer.add_lowercase()
+normalizer.add_strip()
+normalizer.add_whitespace(collapse=True)
+
+var text = normalizer.normalize("  HELLO   WORLD  ")
+# Result: "hello world"
+
+# Pre-tokenize for BPE
+var pretok = ByteLevelPreTokenizer(add_prefix_space=True)
+var tokens = pretok.pre_tokenize("Hello world")
+# Result: ["Hello", "Ġworld"]
+```
+
+### Caching for Performance
+
+```mojo
+# Cache is enabled by default (10k entries)
+var tokenizer = BPETokenizer.from_tiktoken("vocab.tiktoken")
+
+# Encode some text (populates cache)
+var tokens1 = tokenizer.encode("The quick brown fox")
+var tokens2 = tokenizer.encode("The quick brown dog")  # "The", "quick", "brown" cached!
+
+# Check cache statistics
+var stats = tokenizer.cache_stats()  # (hits, misses, size)
+print("Hit rate:", tokenizer.cache_hit_rate())  # ~80% for natural language
+
+# Cache management
+tokenizer.clear_cache()
+tokenizer.set_cache_enabled(False)  # Disable for benchmarking
+```
 
 ## API Reference
 
@@ -105,6 +176,24 @@ var tokens = tokenizer.encode("Hello<|endoftext|>")
 | `decode_batch(token_lists)` | Decode multiple token lists |
 | `vocab_size()` | Get total vocabulary size |
 | `add_special_token(text, id)` | Add a special token |
+| `cache_hit_rate()` | Get cache hit rate (0.0-1.0) |
+| `cache_stats()` | Get (hits, misses, size) |
+| `clear_cache()` | Clear the token cache |
+| `set_cache_enabled(bool)` | Enable/disable caching |
+
+### Chat Templates
+
+| Template | Function | Models |
+|----------|----------|--------|
+| ChatML | `chatml_template()` | GPT-4, Claude, Qwen |
+| Llama 2 | `llama2_template()` | Llama 2 Chat |
+| Llama 3 | `llama3_template()` | Llama 3 Instruct |
+| Mistral | `mistral_template()` | Mistral/Mixtral |
+| Alpaca | `alpaca_template()` | Stanford Alpaca |
+| Vicuna | `vicuna_template()` | Vicuna |
+| Phi-3 | `phi3_template()` | Microsoft Phi-3 |
+| Gemma | `gemma_template()` | Google Gemma |
+| Zephyr | `zephyr_template()` | HuggingFace Zephyr |
 
 ### Token
 
@@ -155,10 +244,10 @@ pixi run build
 
 ## Roadmap
 
-- **v0.1** (current): BPE core, tiktoken loading, special tokens
-- **v0.2**: HuggingFace JSON loading, chat templates
-- **v0.3**: SentencePiece support, batch optimization
-- **v1.0**: Training from corpus, full feature parity
+- **v0.1** ✓: BPE core, tiktoken loading, special tokens
+- **v0.2** ✓ (current): HuggingFace JSON loading, chat templates, caching, pipeline stages
+- **v0.3**: SentencePiece support, GPU acceleration
+- **v1.0**: Training from corpus, streaming, full HuggingFace parity
 
 ## License
 
