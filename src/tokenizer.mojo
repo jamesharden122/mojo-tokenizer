@@ -33,8 +33,8 @@ struct Token:
     fn __str__(self) -> String:
         """Return string representation of the token."""
         if self.is_special:
-            return "Token(id=" + str(self.id) + ", text='" + self.text + "', special=True)"
-        return "Token(id=" + str(self.id) + ", text='" + self.text + "')"
+            return "Token(id=" + String(self.id) + ", text='" + self.text + "', special=True)"
+        return "Token(id=" + String(self.id) + ", text='" + self.text + "')"
 
 
 trait Tokenizer:
@@ -46,7 +46,7 @@ trait Tokenizer:
     (BPE, WordPiece, SentencePiece, etc.).
     """
 
-    fn encode(self, text: String) raises -> List[Int]:
+    fn encode(mut self, text: String) raises -> List[Int]:
         """
         Encode text into a list of token IDs.
 
@@ -58,6 +58,9 @@ trait Tokenizer:
 
         Raises:
             Error if encoding fails (e.g., unknown characters).
+
+        Note:
+            Uses mut self to allow internal caching of token lookups.
         """
         ...
 

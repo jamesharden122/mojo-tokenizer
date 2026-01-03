@@ -8,23 +8,8 @@ are stored as base64-encoded byte sequences.
 # Standard base64 alphabet
 alias BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
-# Lookup table for decoding (initialized at module load)
-var _decode_table: List[Int]
 
-
-fn _init_decode_table() -> List[Int]:
-    """Initialize the base64 decode lookup table."""
-    var table = List[Int]()
-    for _ in range(256):
-        table.append(-1)  # Invalid by default
-
-    for i in range(len(BASE64_CHARS)):
-        var c = ord(BASE64_CHARS[i])
-        table[c] = i
-
-    return table
-
-
+@always_inline
 fn _get_decode_value(c: Int) -> Int:
     """Get decode value for a character."""
     # A-Z: 0-25
@@ -65,12 +50,12 @@ fn base64_decode(encoded: String) raises -> List[UInt8]:
     var result = List[UInt8]()
 
     if len(encoded) == 0:
-        return result
+        return result^
 
     # Remove whitespace and validate length
     var clean = String()
     for i in range(len(encoded)):
-        var c = encoded[i]
+        var c = String(encoded[i])
         if c != " " and c != "\n" and c != "\r" and c != "\t":
             clean += c
 
@@ -93,26 +78,26 @@ fn base64_decode(encoded: String) raises -> List[UInt8]:
         var v3 = _get_decode_value(c3)
 
         if v0 < 0 or v1 < 0:
-            raise Error("Invalid base64 character at position " + str(i))
+            raise Error("Invalid base64 character at position " + String(i))
 
         # First byte: v0 << 2 | v1 >> 4
         result.append(UInt8((v0 << 2) | (v1 >> 4)))
 
         # Second byte (if not padding)
-        if clean[i + 2] != "=":
+        if String(clean[i + 2]) != "=":
             if v2 < 0:
-                raise Error("Invalid base64 character at position " + str(i + 2))
+                raise Error("Invalid base64 character at position " + String(i + 2))
             result.append(UInt8(((v1 & 0x0F) << 4) | (v2 >> 2)))
 
             # Third byte (if not padding)
-            if clean[i + 3] != "=":
+            if String(clean[i + 3]) != "=":
                 if v3 < 0:
-                    raise Error("Invalid base64 character at position " + str(i + 3))
+                    raise Error("Invalid base64 character at position " + String(i + 3))
                 result.append(UInt8(((v2 & 0x03) << 6) | v3))
 
         i += 4
 
-    return result
+    return result^
 
 
 fn base64_encode(data: List[UInt8]) -> String:
@@ -164,8 +149,8 @@ fn bytes_to_string(data: List[UInt8]) -> String:
         The resulting string.
     """
     var result = String()
-    for b in data:
-        result += chr(Int(b[]))
+    for i in range(len(data)):
+        result += chr(Int(data[i]))
     return result
 
 
@@ -182,4 +167,4 @@ fn string_to_bytes(s: String) -> List[UInt8]:
     var result = List[UInt8]()
     for i in range(len(s)):
         result.append(UInt8(ord(s[i])))
-    return result
+    return result^

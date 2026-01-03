@@ -6,7 +6,7 @@ for different LLM models. Each model family has its own format.
 """
 
 
-struct ChatMessage:
+struct ChatMessage(Copyable, Movable):
     """A single message in a conversation."""
 
     var role: String
@@ -23,6 +23,18 @@ struct ChatMessage:
         self.role = role
         self.content = content
         self.name = name
+
+    fn __copyinit__(out self, existing: Self):
+        """Copy constructor."""
+        self.role = existing.role
+        self.content = existing.content
+        self.name = existing.name
+
+    fn __moveinit__(out self, deinit existing: Self):
+        """Move constructor."""
+        self.role = existing.role^
+        self.content = existing.content^
+        self.name = existing.name^
 
     @staticmethod
     fn system(content: String) -> ChatMessage:
@@ -45,7 +57,7 @@ struct ChatMessage:
         return ChatMessage("tool", content, name)
 
 
-struct ChatTemplate:
+struct ChatTemplate(Copyable, Movable):
     """
     Chat template for formatting conversations.
 
@@ -100,6 +112,34 @@ struct ChatTemplate:
         self.add_generation_prompt = True
         self.generation_prompt = ""
 
+    fn __copyinit__(out self, existing: Self):
+        """Copy constructor."""
+        self.bos_token = existing.bos_token
+        self.eos_token = existing.eos_token
+        self.system_prefix = existing.system_prefix
+        self.system_suffix = existing.system_suffix
+        self.user_prefix = existing.user_prefix
+        self.user_suffix = existing.user_suffix
+        self.assistant_prefix = existing.assistant_prefix
+        self.assistant_suffix = existing.assistant_suffix
+        self.sep = existing.sep
+        self.add_generation_prompt = existing.add_generation_prompt
+        self.generation_prompt = existing.generation_prompt
+
+    fn __moveinit__(out self, deinit existing: Self):
+        """Move constructor."""
+        self.bos_token = existing.bos_token^
+        self.eos_token = existing.eos_token^
+        self.system_prefix = existing.system_prefix^
+        self.system_suffix = existing.system_suffix^
+        self.user_prefix = existing.user_prefix^
+        self.user_suffix = existing.user_suffix^
+        self.assistant_prefix = existing.assistant_prefix^
+        self.assistant_suffix = existing.assistant_suffix^
+        self.sep = existing.sep^
+        self.add_generation_prompt = existing.add_generation_prompt
+        self.generation_prompt = existing.generation_prompt^
+
     fn apply(self, messages: List[ChatMessage]) -> String:
         """
         Apply template to a list of messages.
@@ -113,7 +153,7 @@ struct ChatTemplate:
         var result = self.bos_token
 
         for i in range(len(messages)):
-            var msg = messages[i]
+            var msg = messages[i].copy()
 
             if i > 0:
                 result += self.sep
@@ -130,7 +170,7 @@ struct ChatTemplate:
 
         # Add generation prompt if last message is not from assistant
         if self.add_generation_prompt and len(messages) > 0:
-            var last = messages[len(messages) - 1]
+            var last = messages[len(messages) - 1].copy()
             if last.role != "assistant":
                 result += self.generation_prompt
 
@@ -174,12 +214,12 @@ fn apply_chat_template(
 
         var formatted = apply_chat_template(messages, llama3_template())
     """
-    var t = template
+    var t = template.copy()
     t.add_generation_prompt = add_generation_prompt
     return t.apply(messages)
 
 
-struct TemplateBuilder:
+struct TemplateBuilder(Movable):
     """Builder pattern for creating custom chat templates."""
 
     var _template: ChatTemplate
@@ -188,45 +228,49 @@ struct TemplateBuilder:
         """Create a new template builder."""
         self._template = ChatTemplate()
 
-    fn bos(mut self, token: String) -> Self:
+    fn __moveinit__(out self, deinit existing: Self):
+        """Move constructor."""
+        self._template = existing._template^
+
+    fn bos(var self, token: String) -> Self:
         """Set BOS token."""
         self._template.bos_token = token
-        return self
+        return self^
 
-    fn eos(mut self, token: String) -> Self:
+    fn eos(var self, token: String) -> Self:
         """Set EOS token."""
         self._template.eos_token = token
-        return self
+        return self^
 
-    fn system(mut self, prefix: String, suffix: String) -> Self:
+    fn system(var self, prefix: String, suffix: String) -> Self:
         """Set system message format."""
         self._template.system_prefix = prefix
         self._template.system_suffix = suffix
-        return self
+        return self^
 
-    fn user(mut self, prefix: String, suffix: String) -> Self:
+    fn user(var self, prefix: String, suffix: String) -> Self:
         """Set user message format."""
         self._template.user_prefix = prefix
         self._template.user_suffix = suffix
-        return self
+        return self^
 
-    fn assistant(mut self, prefix: String, suffix: String) -> Self:
+    fn assistant(var self, prefix: String, suffix: String) -> Self:
         """Set assistant message format."""
         self._template.assistant_prefix = prefix
         self._template.assistant_suffix = suffix
-        return self
+        return self^
 
-    fn sep(mut self, separator: String) -> Self:
+    fn sep(var self, separator: String) -> Self:
         """Set message separator."""
         self._template.sep = separator
-        return self
+        return self^
 
-    fn generation_prompt(mut self, prompt: String) -> Self:
+    fn generation_prompt(var self, prompt: String) -> Self:
         """Set generation prompt."""
         self._template.generation_prompt = prompt
         self._template.add_generation_prompt = True
-        return self
+        return self^
 
     fn build(self) -> ChatTemplate:
         """Build the template."""
-        return self._template
+        return self._template.copy()

@@ -37,7 +37,7 @@ fn chatml_template() -> ChatTemplate:
     template.sep = ""
     template.generation_prompt = "<|im_start|>assistant\n"
     template.add_generation_prompt = True
-    return template
+    return template^
 
 
 fn llama2_template() -> ChatTemplate:
@@ -63,7 +63,7 @@ fn llama2_template() -> ChatTemplate:
     template.sep = ""
     template.generation_prompt = ""
     template.add_generation_prompt = False
-    return template
+    return template^
 
 
 fn llama3_template() -> ChatTemplate:
@@ -91,7 +91,7 @@ fn llama3_template() -> ChatTemplate:
     template.sep = ""
     template.generation_prompt = "<|start_header_id|>assistant<|end_header_id|>\n\n"
     template.add_generation_prompt = True
-    return template
+    return template^
 
 
 fn mistral_template() -> ChatTemplate:
@@ -113,7 +113,7 @@ fn mistral_template() -> ChatTemplate:
     template.sep = ""
     template.generation_prompt = ""
     template.add_generation_prompt = False
-    return template
+    return template^
 
 
 fn alpaca_template() -> ChatTemplate:
@@ -142,7 +142,7 @@ fn alpaca_template() -> ChatTemplate:
     template.sep = ""
     template.generation_prompt = "### Response:\n"
     template.add_generation_prompt = True
-    return template
+    return template^
 
 
 fn vicuna_template() -> ChatTemplate:
@@ -165,7 +165,7 @@ fn vicuna_template() -> ChatTemplate:
     template.sep = ""
     template.generation_prompt = "ASSISTANT: "
     template.add_generation_prompt = True
-    return template
+    return template^
 
 
 fn phi3_template() -> ChatTemplate:
@@ -192,7 +192,7 @@ fn phi3_template() -> ChatTemplate:
     template.sep = ""
     template.generation_prompt = "<|assistant|>\n"
     template.add_generation_prompt = True
-    return template
+    return template^
 
 
 fn gemma_template() -> ChatTemplate:
@@ -217,7 +217,7 @@ fn gemma_template() -> ChatTemplate:
     template.sep = ""
     template.generation_prompt = "<start_of_turn>model\n"
     template.add_generation_prompt = True
-    return template
+    return template^
 
 
 fn qwen_template() -> ChatTemplate:
@@ -253,4 +253,4 @@ fn zephyr_template() -> ChatTemplate:
     template.sep = ""
     template.generation_prompt = "<|assistant|>\n"
     template.add_generation_prompt = True
-    return template
+    return template^

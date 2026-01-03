@@ -63,30 +63,31 @@ from .special_tokens import SpecialTokens, SpecialToken
 # Format loaders
 from .formats import load_tiktoken, load_huggingface
 
-# Chat templates
-from .chat import ChatTemplate, ChatMessage, apply_chat_template
-from .chat.formats import (
-    chatml_template,
-    llama2_template,
-    llama3_template,
-    mistral_template,
-    alpaca_template,
-    vicuna_template,
-)
-
-# Pipeline stages
-from .pipeline import (
-    Normalizer,
-    NormalizerSequence,
-    PreTokenizer,
-    WhitespacePreTokenizer,
-    ByteLevelPreTokenizer,
-    PostProcessor,
-    TemplatePostProcessor,
-)
-
 # Caching
 from .cache import TokenCache, MergeCache
 
-# Benchmarking
-from .benchmark import BenchmarkRunner, BenchmarkResult, run_benchmark
+# TODO: Re-enable these modules after fixing Mojo 0.25.7 compatibility
+# Chat templates - disabled due to compat issues
+# from .chat import ChatTemplate, ChatMessage, apply_chat_template
+# from .chat.formats import (
+#     chatml_template,
+#     llama2_template,
+#     llama3_template,
+#     mistral_template,
+#     alpaca_template,
+#     vicuna_template,
+# )
+
+# Pipeline stages - disabled due to compat issues
+# from .pipeline import (
+#     Normalizer,
+#     NormalizerSequence,
+#     PreTokenizer,
+#     WhitespacePreTokenizer,
+#     ByteLevelPreTokenizer,
+#     PostProcessor,
+#     TemplatePostProcessor,
+# )
+
+# Benchmarking - disabled due to compat issues
+# from .benchmark import BenchmarkRunner, BenchmarkResult, run_benchmark

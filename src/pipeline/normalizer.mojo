@@ -185,16 +185,16 @@ struct ReplaceNormalizer(Normalizer):
 
         while i < len(text):
             # Check for pattern match
-            var match = True
+            var is_match = True
             if i + len(self.pattern) <= len(text):
                 for j in range(len(self.pattern)):
                     if text[i + j] != self.pattern[j]:
-                        match = False
+                        is_match = False
                         break
             else:
-                match = False
+                is_match = False
 
-            if match:
+            if is_match:
                 result += self.replacement
                 i += len(self.pattern)
             else:

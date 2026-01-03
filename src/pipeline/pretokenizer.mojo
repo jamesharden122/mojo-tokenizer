@@ -12,7 +12,7 @@ This determines the granularity of the initial tokens:
 from ..simd.whitespace import is_whitespace, skip_whitespace_simd
 
 
-struct PreToken:
+struct PreToken(Copyable, Movable):
     """A pre-tokenized chunk with offset information."""
 
     var text: String
@@ -29,6 +29,18 @@ struct PreToken:
         self.text = text
         self.start = start
         self.end = end
+
+    fn __copyinit__(out self, existing: Self):
+        """Copy constructor."""
+        self.text = existing.text
+        self.start = existing.start
+        self.end = existing.end
+
+    fn __moveinit__(out self, deinit existing: Self):
+        """Move constructor."""
+        self.text = existing.text^
+        self.start = existing.start
+        self.end = existing.end
 
 
 trait PreTokenizer:
@@ -76,7 +88,7 @@ struct WhitespacePreTokenizer(PreTokenizer):
 
             start = end
 
-        return result
+        return result^
 
 
 struct ByteLevelPreTokenizer(PreTokenizer):
@@ -103,7 +115,7 @@ struct ByteLevelPreTokenizer(PreTokenizer):
         var result = List[PreToken]()
 
         if len(text) == 0:
-            return result
+            return result^
 
         var pos = 0
         var n = len(text)
@@ -139,7 +151,7 @@ struct ByteLevelPreTokenizer(PreTokenizer):
 
             pos = word_end
 
-        return result
+        return result^
 
 
 struct PunctuationPreTokenizer(PreTokenizer):
@@ -162,7 +174,7 @@ struct PunctuationPreTokenizer(PreTokenizer):
         var current_text = String()
 
         for i in range(len(text)):
-            var c = text[i]
+            var c = String(text[i])
             var is_punct = self._is_punctuation(c)
 
             if is_punct:
@@ -183,7 +195,7 @@ struct PunctuationPreTokenizer(PreTokenizer):
         if len(current_text) > 0:
             result.append(PreToken(current_text, current_start, len(text)))
 
-        return result
+        return result^
 
     fn _is_punctuation(self, c: String) -> Bool:
         """Check if character is punctuation."""
@@ -217,7 +229,7 @@ struct DigitPreTokenizer(PreTokenizer):
         var in_digits = False
 
         for i in range(len(text)):
-            var c = text[i]
+            var c = String(text[i])
             var code = ord(c)
             var is_digit = code >= 48 and code <= 57
 
@@ -228,7 +240,7 @@ struct DigitPreTokenizer(PreTokenizer):
                         # Split into individual digits
                         for j in range(len(current_text)):
                             result.append(PreToken(
-                                current_text[j],
+                                String(current_text[j]),
                                 current_start + j,
                                 current_start + j + 1
                             ))
@@ -246,14 +258,14 @@ struct DigitPreTokenizer(PreTokenizer):
             if in_digits and self.individual_digits:
                 for j in range(len(current_text)):
                     result.append(PreToken(
-                        current_text[j],
+                        String(current_text[j]),
                         current_start + j,
                         current_start + j + 1
                     ))
             else:
                 result.append(PreToken(current_text, current_start, len(text)))
 
-        return result
+        return result^
 
 
 struct SplitPreTokenizer(PreTokenizer):
@@ -277,23 +289,23 @@ struct SplitPreTokenizer(PreTokenizer):
 
         if len(self.pattern) == 0 or len(text) == 0:
             result.append(PreToken(text, 0, len(text)))
-            return result
+            return result^
 
         var current_start = 0
         var i = 0
 
         while i <= len(text) - len(self.pattern):
             # Check for pattern match
-            var match = True
+            var is_match = True
             for j in range(len(self.pattern)):
-                if text[i + j] != self.pattern[j]:
-                    match = False
+                if String(text[i + j]) != String(self.pattern[j]):
+                    is_match = False
                     break
 
-            if match:
+            if is_match:
                 # Add text before pattern
                 if i > current_start:
-                    result.append(PreToken(text[current_start:i], current_start, i))
+                    result.append(PreToken(String(text[current_start:i]), current_start, i))
 
                 # Handle pattern based on behavior
                 if self.behavior == "isolated":
@@ -307,6 +319,6 @@ struct SplitPreTokenizer(PreTokenizer):
 
         # Add remaining text
         if current_start < len(text):
-            result.append(PreToken(text[current_start:], current_start, len(text)))
+            result.append(PreToken(String(text[current_start:]), current_start, len(text)))
 
-        return result
+        return result^

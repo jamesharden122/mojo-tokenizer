@@ -26,7 +26,7 @@ from ..io.file import read_lines
 from ..encoding.base64 import base64_decode, bytes_to_string
 
 
-fn _split_line(line: String) -> (String, String):
+fn _split_line(line: String) -> Tuple[String, String]:
     """Split a line on the last space (token may contain spaces)."""
     # Find last space (rank is always at end)
     var last_space = -1
@@ -36,9 +36,9 @@ fn _split_line(line: String) -> (String, String):
             break
 
     if last_space < 0:
-        return (line, "")
+        return Tuple(line, String(""))
 
-    return (line[:last_space], line[last_space + 1:])
+    return Tuple(String(line[:last_space]), String(line[last_space + 1:]))
 
 
 fn _parse_int(s: String) raises -> Int:
@@ -68,7 +68,7 @@ fn _parse_int(s: String) raises -> Int:
     return result
 
 
-fn load_tiktoken(path: String) raises -> (Vocabulary, SpecialTokens):
+fn load_tiktoken(path: String) raises -> Tuple[Vocabulary, SpecialTokens]:
     """
     Load a tiktoken vocabulary file.
 
@@ -120,7 +120,7 @@ fn load_tiktoken(path: String) raises -> (Vocabulary, SpecialTokens):
         var rank_str = parts[1]
 
         if len(encoded_token) == 0 or len(rank_str) == 0:
-            raise Error("Invalid tiktoken line " + str(i) + ": " + line)
+            raise Error("Invalid tiktoken line " + String(i) + ": " + line)
 
         # Parse rank
         var rank = _parse_int(rank_str)
@@ -132,13 +132,13 @@ fn load_tiktoken(path: String) raises -> (Vocabulary, SpecialTokens):
         # Add to vocabulary
         vocab.add_token(token, rank)
 
-    return (vocab, special)
+    return Tuple(vocab^, special^)
 
 
 fn load_tiktoken_with_special(
     path: String,
     special_tokens: Dict[String, Int]
-) raises -> (Vocabulary, SpecialTokens):
+) raises -> Tuple[Vocabulary, SpecialTokens]:
     """
     Load a tiktoken vocabulary with additional special tokens.
 
@@ -160,10 +160,12 @@ fn load_tiktoken_with_special(
             special
         )
     """
-    var vocab, special = load_tiktoken(path)
+    var result = load_tiktoken(path)
+    var vocab = result[0].copy()
+    var special = result[1].copy()
 
     # Add special tokens
     for item in special_tokens.items():
-        special.add(item[].key, item[].value)
+        special.add(item.key, item.value)
 
-    return (vocab, special)
+    return Tuple(vocab^, special^)

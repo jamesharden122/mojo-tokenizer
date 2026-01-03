@@ -11,8 +11,8 @@ alias SIMD_WIDTH: Int = 16
 @always_inline
 fn char_matches_any(c: UInt8, targets: List[UInt8]) -> Bool:
     """Check if character matches any target."""
-    for t in targets:
-        if c == t[]:
+    for i in range(len(targets)):
+        if c == targets[i]:
             return True
     return False
 
@@ -85,10 +85,11 @@ fn find_any_char_simd(data: String, start: Int, targets: String) -> Int:
 
         # Check each target
         var found_mask = SIMD[DType.uint8, SIMD_WIDTH](0)
-        for t in target_bytes:
+        for ti in range(len(target_bytes)):
+            var t = target_bytes[ti]
             @parameter
             for i in range(SIMD_WIDTH):
-                if chunk[i] == t[]:
+                if chunk[i] == t:
                     found_mask[i] = 1
 
         # Any matches?
@@ -103,8 +104,8 @@ fn find_any_char_simd(data: String, start: Int, targets: String) -> Int:
     # Scalar tail
     while pos < n:
         var c = UInt8(ord(data[pos]))
-        for t in target_bytes:
-            if c == t[]:
+        for ti in range(len(target_bytes)):
+            if c == target_bytes[ti]:
                 return pos
         pos += 1
 

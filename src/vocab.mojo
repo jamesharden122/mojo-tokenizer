@@ -6,7 +6,7 @@ as well as BPE merge rules that define how tokens combine.
 """
 
 
-struct MergeRule:
+struct MergeRule(Copyable, Movable):
     """Represents a BPE merge rule: two tokens merge into one."""
 
     var first: String
@@ -28,8 +28,20 @@ struct MergeRule:
         self.result = first + second
         self.rank = rank
 
+    fn __copyinit__(out self, existing: Self):
+        self.first = existing.first
+        self.second = existing.second
+        self.result = existing.result
+        self.rank = existing.rank
 
-struct Vocabulary:
+    fn __moveinit__(out self, deinit existing: Self):
+        self.first = existing.first^
+        self.second = existing.second^
+        self.result = existing.result^
+        self.rank = existing.rank
+
+
+struct Vocabulary(Copyable, Movable):
     """
     Manages the vocabulary mapping between tokens and IDs.
 
@@ -56,6 +68,20 @@ struct Vocabulary:
         self._id_to_token = Dict[Int, String]()
         self._merges = Dict[String, Int]()
         self._size = 0
+
+    fn __copyinit__(out self, existing: Self):
+        """Copy constructor."""
+        self._token_to_id = existing._token_to_id.copy()
+        self._id_to_token = existing._id_to_token.copy()
+        self._merges = existing._merges.copy()
+        self._size = existing._size
+
+    fn __moveinit__(out self, deinit existing: Self):
+        """Move constructor."""
+        self._token_to_id = existing._token_to_id^
+        self._id_to_token = existing._id_to_token^
+        self._merges = existing._merges^
+        self._size = existing._size
 
     fn add_token(mut self, token: String, id: Int):
         """
@@ -90,7 +116,10 @@ struct Vocabulary:
             The token ID, or -1 if not found.
         """
         if token in self._token_to_id:
-            return self._token_to_id[token]
+            try:
+                return self._token_to_id[token]
+            except:
+                return -1
         return -1
 
     fn get_text(self, id: Int) -> String:
@@ -104,7 +133,10 @@ struct Vocabulary:
             The token text, or empty string if not found.
         """
         if id in self._id_to_token:
-            return self._id_to_token[id]
+            try:
+                return self._id_to_token[id]
+            except:
+                return ""
         return ""
 
     fn get_merge_rank(self, pair: String) -> Int:
@@ -118,7 +150,10 @@ struct Vocabulary:
             The merge rank, or -1 if no merge rule exists.
         """
         if pair in self._merges:
-            return self._merges[pair]
+            try:
+                return self._merges[pair]
+            except:
+                return -1
         return -1
 
     fn has_token(self, token: String) -> Bool:

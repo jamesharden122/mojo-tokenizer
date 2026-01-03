@@ -10,7 +10,7 @@ Based on performance best practices:
 """
 
 
-struct TokenCache:
+struct TokenCache(Movable):
     """
     LRU cache for tokenized words.
 
@@ -39,6 +39,14 @@ struct TokenCache:
         self._hits = 0
         self._misses = 0
 
+    fn __moveinit__(out self, deinit existing: Self):
+        """Move constructor."""
+        self._cache = existing._cache^
+        self._access_order = existing._access_order^
+        self._capacity = existing._capacity
+        self._hits = existing._hits
+        self._misses = existing._misses
+
     fn get(mut self, key: String) -> Optional[List[Int]]:
         """
         Get cached token IDs for a word.
@@ -52,11 +60,14 @@ struct TokenCache:
         if key in self._cache:
             self._hits += 1
             self._move_to_front(key)
-            return self._cache[key]
+            try:
+                return self._cache[key].copy()
+            except:
+                return None
         self._misses += 1
         return None
 
-    fn put(mut self, key: String, owned value: List[Int]):
+    fn put(mut self, key: String, var value: List[Int]):
         """
         Cache token IDs for a word.
 
@@ -147,8 +158,8 @@ struct TokenCache:
             if oldest in self._cache:
                 # Count remaining references in access_order
                 var count = 0
-                for k in self._access_order:
-                    if k[] == oldest:
+                for ki in range(len(self._access_order)):
+                    if self._access_order[ki] == oldest:
                         count += 1
                         break
 
@@ -157,8 +168,12 @@ struct TokenCache:
                     # Remove from cache
                     var new_cache = Dict[String, List[Int]]()
                     for item in self._cache.items():
-                        if item[].key != oldest:
-                            new_cache[item[].key] = item[].value
+                        if item.key != oldest:
+                            try:
+                                # Use item.value directly to avoid aliasing
+                                new_cache[item.key] = item.value.copy()
+                            except:
+                                pass
                     self._cache = new_cache^
                     evicted = True
 
@@ -184,7 +199,7 @@ struct TokenCache:
         self._access_order = new_order^
 
 
-struct MergeCache:
+struct MergeCache(Movable):
     """
     Cache for BPE merge rule lookups.
 
@@ -197,6 +212,11 @@ struct MergeCache:
     fn __init__(out self):
         self._ranks = Dict[UInt64, Int]()
         self._size = 0
+
+    fn __moveinit__(out self, deinit existing: Self):
+        """Move constructor."""
+        self._ranks = existing._ranks^
+        self._size = existing._size
 
     fn add(mut self, first: String, second: String, rank: Int):
         """Add a merge rule."""
@@ -213,7 +233,10 @@ struct MergeCache:
         """
         var hash = self._hash_pair(first, second)
         if hash in self._ranks:
-            return self._ranks[hash]
+            try:
+                return self._ranks[hash]
+            except:
+                return -1
         return -1
 
     fn has_merge(self, first: String, second: String) -> Bool:

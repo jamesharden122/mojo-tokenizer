@@ -12,7 +12,7 @@ Uses SIMD-optimized whitespace skipping for performance.
 from ..simd.whitespace import skip_whitespace_simd
 
 
-struct JsonValue:
+struct JsonValue(Copyable, Movable):
     """Represents a parsed JSON value."""
 
     var _type: Int  # 0=null, 1=bool, 2=int, 3=float, 4=string, 5=array, 6=object
@@ -29,6 +29,22 @@ struct JsonValue:
         self._int_val = 0
         self._float_val = 0.0
         self._string_val = ""
+
+    fn __copyinit__(out self, existing: Self):
+        """Copy constructor."""
+        self._type = existing._type
+        self._bool_val = existing._bool_val
+        self._int_val = existing._int_val
+        self._float_val = existing._float_val
+        self._string_val = existing._string_val
+
+    fn __moveinit__(out self, deinit existing: Self):
+        """Move constructor."""
+        self._type = existing._type
+        self._bool_val = existing._bool_val
+        self._int_val = existing._int_val
+        self._float_val = existing._float_val
+        self._string_val = existing._string_val^
 
     fn is_null(self) -> Bool:
         return self._type == 0
@@ -60,21 +76,21 @@ struct JsonValue:
         var result = Self()
         result._type = 1
         result._bool_val = v
-        return result
+        return result^
 
     @staticmethod
     fn from_int(v: Int) -> Self:
         var result = Self()
         result._type = 2
         result._int_val = v
-        return result
+        return result^
 
     @staticmethod
     fn from_string(v: String) -> Self:
         var result = Self()
         result._type = 4
         result._string_val = v
-        return result
+        return result^
 
 
 struct JsonParser:
@@ -102,13 +118,13 @@ struct JsonParser:
         """Peek at current character without consuming."""
         if self._pos >= self._len:
             return ""
-        return self._data[self._pos]
+        return String(self._data[self._pos])
 
     fn consume(mut self) -> String:
         """Consume and return current character."""
         if self._pos >= self._len:
             return ""
-        var c = self._data[self._pos]
+        var c = String(self._data[self._pos])
         self._pos += 1
         return c
 
@@ -116,7 +132,7 @@ struct JsonParser:
         """Consume expected character or raise error."""
         var c = self.consume()
         if c != expected:
-            raise Error("Expected '" + expected + "' but got '" + c + "' at position " + str(self._pos))
+            raise Error("Expected '" + expected + "' but got '" + c + "' at position " + String(self._pos))
 
     fn parse_string(mut self) raises -> String:
         """Parse a JSON string value."""
@@ -124,7 +140,7 @@ struct JsonParser:
         var result = String()
 
         while self._pos < self._len:
-            var c = self._data[self._pos]
+            var c = String(self._data[self._pos])
             self._pos += 1
 
             if c == "\"":
@@ -134,7 +150,7 @@ struct JsonParser:
                 # Handle escape sequences
                 if self._pos >= self._len:
                     raise Error("Unexpected end of string")
-                var next = self._data[self._pos]
+                var next = String(self._data[self._pos])
                 self._pos += 1
 
                 if next == "\"":
@@ -151,7 +167,7 @@ struct JsonParser:
                     # Unicode escape - parse 4 hex digits
                     if self._pos + 4 > self._len:
                         raise Error("Invalid unicode escape")
-                    var hex_str = self._data[self._pos : self._pos + 4]
+                    var hex_str = String(self._data[self._pos : self._pos + 4])
                     self._pos += 4
                     var code = self._parse_hex(hex_str)
                     result += chr(code)
@@ -295,7 +311,7 @@ struct JsonParser:
 
         if self.peek() == "}":
             self._pos += 1
-            return result
+            return result^
 
         while True:
             self.skip_whitespace()
@@ -311,14 +327,19 @@ struct JsonParser:
             var c = self.peek()
             if c == "}":
                 self._pos += 1
-                return result
+                return result^
             elif c == ",":
                 self._pos += 1
             else:
                 raise Error("Expected ',' or '}' in vocab dict")
 
     fn parse_merges_array(mut self) raises -> List[String]:
-        """Parse a merges array: ["first second", ...]."""
+        """Parse a merges array.
+
+        Supports two formats:
+        - Old format: ["first second", ...] (space-separated strings)
+        - New format: [["first", "second"], ...] (nested arrays)
+        """
         var result = List[String]()
 
         self.expect("[")
@@ -326,22 +347,51 @@ struct JsonParser:
 
         if self.peek() == "]":
             self._pos += 1
-            return result
+            return result^
 
         while True:
             self.skip_whitespace()
-            var merge = self.parse_string()
+            var c = self.peek()
+
+            var merge: String
+            if c == "[":
+                # New format: ["first", "second"]
+                merge = self._parse_merge_pair()
+            elif c == "\"":
+                # Old format: "first second"
+                merge = self.parse_string()
+            else:
+                raise Error("Expected '[' or '\"' in merges array, got '" + c + "'")
+
             result.append(merge)
 
             self.skip_whitespace()
-            var c = self.peek()
+            c = self.peek()
             if c == "]":
                 self._pos += 1
-                return result
+                return result^
             elif c == ",":
                 self._pos += 1
             else:
                 raise Error("Expected ',' or ']' in merges array")
+
+    fn _parse_merge_pair(mut self) raises -> String:
+        """Parse a merge pair array: ["first", "second"] -> "first second"."""
+        self.expect("[")
+        self.skip_whitespace()
+
+        var first = self.parse_string()
+
+        self.skip_whitespace()
+        self.expect(",")
+        self.skip_whitespace()
+
+        var second = self.parse_string()
+
+        self.skip_whitespace()
+        self.expect("]")
+
+        return first + " " + second
 
     fn find_field(mut self, field: String) raises -> Bool:
         """Find a field in the current object. Returns True if found."""
@@ -375,7 +425,7 @@ struct JsonParser:
                 raise Error("Expected ',' or '}' in object")
 
 
-struct AddedToken:
+struct AddedToken(Copyable, Movable):
     """Represents an added token from HuggingFace format."""
 
     var content: String
@@ -387,6 +437,16 @@ struct AddedToken:
         self.id = 0
         self.special = False
 
+    fn __copyinit__(out self, existing: Self):
+        self.content = existing.content
+        self.id = existing.id
+        self.special = existing.special
+
+    fn __moveinit__(out self, deinit existing: Self):
+        self.content = existing.content^
+        self.id = existing.id
+        self.special = existing.special
+
 
 fn parse_added_tokens(mut parser: JsonParser) raises -> List[AddedToken]:
     """Parse the added_tokens array from HuggingFace format."""
@@ -397,7 +457,7 @@ fn parse_added_tokens(mut parser: JsonParser) raises -> List[AddedToken]:
 
     if parser.peek() == "]":
         parser._pos += 1
-        return result
+        return result^
 
     while True:
         parser.skip_whitespace()
@@ -408,7 +468,7 @@ fn parse_added_tokens(mut parser: JsonParser) raises -> List[AddedToken]:
         var c = parser.peek()
         if c == "]":
             parser._pos += 1
-            return result
+            return result^
         elif c == ",":
             parser._pos += 1
         else:
@@ -424,7 +484,7 @@ fn _parse_added_token(mut parser: JsonParser) raises -> AddedToken:
 
     if parser.peek() == "}":
         parser._pos += 1
-        return token
+        return token^
 
     while True:
         parser.skip_whitespace()
@@ -446,7 +506,7 @@ fn _parse_added_token(mut parser: JsonParser) raises -> AddedToken:
         var c = parser.peek()
         if c == "}":
             parser._pos += 1
-            return token
+            return token^
         elif c == ",":
             parser._pos += 1
         else:

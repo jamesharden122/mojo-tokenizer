@@ -23,7 +23,7 @@ fn read_file(path: String) raises -> String:
         with open(path, "r") as f:
             return f.read()
     except e:
-        raise Error("Failed to read file '" + path + "': " + str(e))
+        raise Error("Failed to read file '" + path + "': " + String(e))
 
 
 fn read_bytes(path: String) raises -> List[UInt8]:
@@ -45,9 +45,9 @@ fn read_bytes(path: String) raises -> List[UInt8]:
             var result = List[UInt8]()
             for i in range(len(content)):
                 result.append(content[i])
-            return result
+            return result^
     except e:
-        raise Error("Failed to read file '" + path + "': " + str(e))
+        raise Error("Failed to read file '" + path + "': " + String(e))
 
 
 fn read_lines(path: String) raises -> List[String]:
@@ -68,18 +68,18 @@ fn read_lines(path: String) raises -> List[String]:
     var current_line = String()
 
     for i in range(len(content)):
-        var c = content[i]
+        var c = String(content[i])
         if c == "\n":
-            lines.append(current_line)
+            lines.append(current_line^)
             current_line = String()
         elif c != "\r":  # Skip carriage returns
             current_line += c
 
     # Add last line if not empty
     if len(current_line) > 0:
-        lines.append(current_line)
+        lines.append(current_line^)
 
-    return lines
+    return lines^
 
 
 fn file_exists(path: String) -> Bool:

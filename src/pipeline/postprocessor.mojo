@@ -8,7 +8,7 @@ Post-processors transform token sequences after tokenization:
 """
 
 
-struct EncodingOutput:
+struct EncodingOutput(Copyable, Movable):
     """Output from tokenization with metadata."""
 
     var ids: List[Int]
@@ -33,6 +33,22 @@ struct EncodingOutput:
         self.attention_mask = List[Int]()
         self.special_tokens_mask = List[Int]()
         self.offsets = List[Tuple[Int, Int]]()
+
+    fn __copyinit__(out self, existing: Self):
+        """Copy constructor."""
+        self.ids = existing.ids.copy()
+        self.type_ids = existing.type_ids.copy()
+        self.attention_mask = existing.attention_mask.copy()
+        self.special_tokens_mask = existing.special_tokens_mask.copy()
+        self.offsets = existing.offsets.copy()
+
+    fn __moveinit__(out self, deinit existing: Self):
+        """Move constructor."""
+        self.ids = existing.ids^
+        self.type_ids = existing.type_ids^
+        self.attention_mask = existing.attention_mask^
+        self.special_tokens_mask = existing.special_tokens_mask^
+        self.offsets = existing.offsets^
 
     fn add_token(mut self, id: Int, type_id: Int = 0, is_special: Bool = False):
         """Add a token to the encoding."""
@@ -92,7 +108,7 @@ struct BertPostProcessor(PostProcessor):
         if add_special_tokens:
             result.add_token(self.sep_id, 0, True)
 
-        return result
+        return result^
 
     fn process_pair(
         self,
@@ -128,7 +144,7 @@ struct BertPostProcessor(PostProcessor):
         if add_special_tokens:
             result.add_token(self.sep_id, 1, True)
 
-        return result
+        return result^
 
 
 struct TemplatePostProcessor(PostProcessor):
@@ -183,38 +199,42 @@ struct TemplatePostProcessor(PostProcessor):
         var n = len(template)
 
         while i < n:
-            if template[i] == "$" and i + 1 < n:
-                var next = template[i + 1]
-                if next == "A":
+            var ch = String(template[i])
+            if ch == "$" and i + 1 < n:
+                var next_ch = String(template[i + 1])
+                if next_ch == "A":
                     # Insert sequence A
                     for j in range(len(a.ids)):
                         result.add_token(a.ids[j], 0, a.special_tokens_mask[j] == 1)
                     i += 2
-                elif next == "B":
+                elif next_ch == "B":
                     # Insert sequence B
                     for j in range(len(b.ids)):
                         result.add_token(b.ids[j], 1, b.special_tokens_mask[j] == 1)
                     i += 2
                 else:
                     i += 1
-            elif template[i] == "[":
+            elif ch == "[":
                 # Special token - find closing bracket
                 var token_start = i
-                while i < n and template[i] != "]":
+                while i < n and String(template[i]) != "]":
                     i += 1
                 if i < n:
                     i += 1  # Skip ]
-                var token_text = template[token_start:i]
+                var token_text = String(template[token_start:i])
 
                 if add_special and token_text in self.special_tokens:
-                    result.add_token(self.special_tokens[token_text], 0, True)
-            elif template[i] == " ":
+                    try:
+                        result.add_token(self.special_tokens[token_text], 0, True)
+                    except:
+                        pass
+            elif ch == " ":
                 # Skip whitespace in template
                 i += 1
             else:
                 i += 1
 
-        return result
+        return result^
 
 
 struct GPT2PostProcessor(PostProcessor):
@@ -260,7 +280,7 @@ struct GPT2PostProcessor(PostProcessor):
         if add_special_tokens and self.add_eos and self.eos_id >= 0:
             result.add_token(self.eos_id, 0, True)
 
-        return result
+        return result^
 
     fn process_pair(
         self,
@@ -297,7 +317,7 @@ struct GPT2PostProcessor(PostProcessor):
         if add_special_tokens and self.add_eos and self.eos_id >= 0:
             result.add_token(self.eos_id, 0, True)
 
-        return result
+        return result^
 
 
 struct LlamaPostProcessor(PostProcessor):
@@ -329,7 +349,7 @@ struct LlamaPostProcessor(PostProcessor):
                 encoding.special_tokens_mask[i] == 1
             )
 
-        return result
+        return result^
 
     fn process_pair(
         self,
@@ -353,4 +373,4 @@ struct LlamaPostProcessor(PostProcessor):
         for i in range(len(pair_encoding.ids)):
             result.add_token(pair_encoding.ids[i], 0, pair_encoding.special_tokens_mask[i] == 1)
 
-        return result
+        return result^

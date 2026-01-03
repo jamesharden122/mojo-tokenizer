@@ -122,7 +122,7 @@ fn test_special_token_splitting() raises:
     var segments = special.split_on_special("Hello<|endoftext|>World")
 
     if len(segments) != 3:
-        raise Error("Should have 3 segments, got " + str(len(segments)))
+        raise Error("Should have 3 segments, got " + String(len(segments)))
 
     if segments[0].text != "Hello" or segments[0].is_special:
         raise Error("First segment should be 'Hello' (not special)")

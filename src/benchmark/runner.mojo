@@ -4,10 +4,10 @@ Benchmark runner for tokenizer performance testing.
 Measures encoding/decoding throughput and latency.
 """
 
-from time import now
+from time import perf_counter_ns
 
 
-struct BenchmarkResult:
+struct BenchmarkResult(Copyable, Movable):
     """Result of a single benchmark run."""
 
     var name: String
@@ -40,6 +40,22 @@ struct BenchmarkResult:
         self.tokens_processed = tokens_processed
         self.chars_processed = chars_processed
 
+    fn __copyinit__(out self, existing: Self):
+        """Copy constructor."""
+        self.name = existing.name
+        self.iterations = existing.iterations
+        self.total_time_ns = existing.total_time_ns
+        self.tokens_processed = existing.tokens_processed
+        self.chars_processed = existing.chars_processed
+
+    fn __moveinit__(out self, deinit existing: Self):
+        """Move constructor."""
+        self.name = existing.name^
+        self.iterations = existing.iterations
+        self.total_time_ns = existing.total_time_ns
+        self.tokens_processed = existing.tokens_processed
+        self.chars_processed = existing.chars_processed
+
     fn avg_time_ns(self) -> Float64:
         """Average time per iteration in nanoseconds."""
         if self.iterations == 0:
@@ -65,11 +81,11 @@ struct BenchmarkResult:
     fn print_summary(self):
         """Print benchmark summary."""
         print("Benchmark: " + self.name)
-        print("  Iterations: " + str(self.iterations))
-        print("  Total time: " + str(Float64(self.total_time_ns) / 1_000_000.0) + " ms")
-        print("  Avg time: " + str(self.avg_time_ms()) + " ms")
-        print("  Tokens/sec: " + str(Int(self.tokens_per_sec())))
-        print("  Chars/sec: " + str(Int(self.chars_per_sec())))
+        print("  Iterations: " + String(self.iterations))
+        print("  Total time: " + String(Float64(self.total_time_ns) / 1_000_000.0) + " ms")
+        print("  Avg time: " + String(self.avg_time_ms()) + " ms")
+        print("  Tokens/sec: " + String(Int(self.tokens_per_sec())))
+        print("  Chars/sec: " + String(Int(self.chars_per_sec())))
 
 
 struct BenchmarkRunner:
@@ -115,7 +131,7 @@ struct BenchmarkRunner:
         Returns:
             Benchmark result with timing statistics.
         """
-        var tok = tokenizer  # Mutable copy
+        var tok = tokenizer.copy()  # Mutable copy
 
         # Warmup
         for _ in range(self.warmup_iterations):
@@ -126,25 +142,25 @@ struct BenchmarkRunner:
 
         # Timed runs
         var total_tokens = 0
-        var start = now()
+        var start = perf_counter_ns()
 
         for _ in range(self.iterations):
             var tokens = tok.encode(text)
             total_tokens += len(tokens)
 
-        var end = now()
+        var end = perf_counter_ns()
         var total_time_ns = end - start
 
         var result = BenchmarkResult(
             name,
             self.iterations,
-            total_time_ns,
+            Int(total_time_ns),
             total_tokens,
             len(text) * self.iterations
         )
 
-        self._results.append(result)
-        return result
+        self._results.append(result^)
+        return self._results[len(self._results) - 1].copy()
 
     fn run_decode(
         mut self,
@@ -169,25 +185,25 @@ struct BenchmarkRunner:
 
         # Timed runs
         var total_chars = 0
-        var start = now()
+        var start = perf_counter_ns()
 
         for _ in range(self.iterations):
             var text = tokenizer.decode(tokens)
             total_chars += len(text)
 
-        var end = now()
+        var end = perf_counter_ns()
         var total_time_ns = end - start
 
         var result = BenchmarkResult(
             name,
             self.iterations,
-            total_time_ns,
+            Int(total_time_ns),
             len(tokens) * self.iterations,
             total_chars
         )
 
-        self._results.append(result)
-        return result
+        self._results.append(result^)
+        return self._results[len(self._results) - 1].copy()
 
     fn run_roundtrip(
         mut self,
@@ -206,7 +222,7 @@ struct BenchmarkRunner:
         Returns:
             Benchmark result with timing statistics.
         """
-        var tok = tokenizer
+        var tok = tokenizer.copy()
 
         # Warmup
         for _ in range(self.warmup_iterations):
@@ -217,36 +233,36 @@ struct BenchmarkRunner:
 
         # Timed runs
         var total_tokens = 0
-        var start = now()
+        var start = perf_counter_ns()
 
         for _ in range(self.iterations):
             var tokens = tok.encode(text)
             _ = tok.decode(tokens)
             total_tokens += len(tokens)
 
-        var end = now()
+        var end = perf_counter_ns()
         var total_time_ns = end - start
 
         var result = BenchmarkResult(
             name + " (roundtrip)",
             self.iterations,
-            total_time_ns,
+            Int(total_time_ns),
             total_tokens,
             len(text) * self.iterations
         )
 
-        self._results.append(result)
-        return result
+        self._results.append(result^)
+        return self._results[len(self._results) - 1].copy()
 
     fn results(self) -> List[BenchmarkResult]:
         """Get all collected results."""
-        return self._results
+        return self._results.copy()
 
     fn print_all_results(self):
         """Print all collected results."""
         print("\n=== Benchmark Results ===\n")
-        for r in self._results:
-            r[].print_summary()
+        for i in range(len(self._results)):
+            self._results[i].print_summary()
             print("")
 
 
@@ -255,7 +271,7 @@ from ..bpe import BPETokenizer
 
 
 fn run_benchmark(
-    tokenizer: BPETokenizer,
+    mut tokenizer: BPETokenizer,
     texts: List[String],
     iterations: Int = 100
 ) raises -> List[BenchmarkResult]:
@@ -275,16 +291,15 @@ fn run_benchmark(
 
     for i in range(len(texts)):
         var text = texts[i]
-        var name = "text_" + str(i) + " (" + str(len(text)) + " chars)"
+        var name = "text_" + String(i) + " (" + String(len(text)) + " chars)"
 
         var encode_result = runner.run_encode(name + " encode", tokenizer, text)
-        results.append(encode_result)
+        results.append(encode_result^)
 
         # Get tokens for decode benchmark
-        var tok = tokenizer
-        var tokens = tok.encode(text)
+        var tokens = tokenizer.encode(text)
 
         var decode_result = runner.run_decode(name + " decode", tokenizer, tokens)
-        results.append(decode_result)
+        results.append(decode_result^)
 
-    return results
+    return results^

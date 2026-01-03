@@ -6,7 +6,7 @@ split during tokenization (e.g., [CLS], [SEP], <|endoftext|>, <s>, </s>).
 """
 
 
-struct SpecialToken:
+struct SpecialToken(Copyable, Movable):
     """Represents a special token."""
 
     var text: String
@@ -20,8 +20,16 @@ struct SpecialToken:
         self.text = text
         self.id = id
 
+    fn __copyinit__(out self, existing: Self):
+        self.text = existing.text
+        self.id = existing.id
 
-struct TextSegment:
+    fn __moveinit__(out self, deinit existing: Self):
+        self.text = existing.text^
+        self.id = existing.id
+
+
+struct TextSegment(Copyable, Movable):
     """A segment of text, either special or ordinary."""
 
     var text: String
@@ -35,8 +43,16 @@ struct TextSegment:
         self.text = text
         self.is_special = is_special
 
+    fn __copyinit__(out self, existing: Self):
+        self.text = existing.text
+        self.is_special = existing.is_special
 
-struct SpecialTokens:
+    fn __moveinit__(out self, deinit existing: Self):
+        self.text = existing.text^
+        self.is_special = existing.is_special
+
+
+struct SpecialTokens(Copyable, Movable):
     """
     Manages special tokens for a tokenizer.
 
@@ -62,6 +78,18 @@ struct SpecialTokens:
         self._id_to_text = Dict[Int, String]()
         self._tokens = List[SpecialToken]()
 
+    fn __copyinit__(out self, existing: Self):
+        """Copy constructor."""
+        self._text_to_id = existing._text_to_id.copy()
+        self._id_to_text = existing._id_to_text.copy()
+        self._tokens = existing._tokens.copy()
+
+    fn __moveinit__(out self, deinit existing: Self):
+        """Move constructor."""
+        self._text_to_id = existing._text_to_id^
+        self._id_to_text = existing._id_to_text^
+        self._tokens = existing._tokens^
+
     fn add(mut self, text: String, id: Int):
         """
         Add a special token.
@@ -85,7 +113,10 @@ struct SpecialTokens:
             The token ID, or -1 if not a special token.
         """
         if text in self._text_to_id:
-            return self._text_to_id[text]
+            try:
+                return self._text_to_id[text]
+            except:
+                return -1
         return -1
 
     fn get_text(self, id: Int) -> String:
@@ -99,7 +130,10 @@ struct SpecialTokens:
             The token text, or empty string if not a special token.
         """
         if id in self._id_to_text:
-            return self._id_to_text[id]
+            try:
+                return self._id_to_text[id]
+            except:
+                return ""
         return ""
 
     fn is_special(self, text: String) -> Bool:
@@ -139,7 +173,7 @@ struct SpecialTokens:
         var result = List[TextSegment]()
 
         if len(text) == 0:
-            return result
+            return result^
 
         # Simple approach: iterate through text looking for special tokens
         # TODO: Use a more efficient algorithm (e.g., Aho-Corasick)
@@ -150,8 +184,9 @@ struct SpecialTokens:
             var found_special = False
 
             # Check if any special token starts at current position
-            for token in self._tokens:
-                var token_text = token[].text
+            for i in range(len(self._tokens)):
+                var token = self._tokens[i].copy()
+                var token_text = token.text
                 var token_len = len(token_text)
 
                 if current_pos + token_len <= len(text):
@@ -174,7 +209,7 @@ struct SpecialTokens:
         if len(current_segment) > 0:
             result.append(TextSegment(current_segment, is_special=False))
 
-        return result
+        return result^
 
     fn clear(mut self):
         """Clear all special tokens."""
