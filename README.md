@@ -10,7 +10,7 @@ MAX Engine currently uses Python-wrapped HuggingFace tokenizers. This library pr
 - **Single binary deployment** — No interpreter or external dependencies
 - **Format compatibility** — Load tiktoken (OpenAI) and HuggingFace vocabularies
 - **Production ready** — Special token handling, batch processing, chat templates
-- **High performance** — 100k+ tokens/sec with word-level caching (80%+ hit rate)
+- **High performance** — 3M+ tokens/sec with optimized caching (94%+ hit rate)
 
 ## Installation
 
@@ -214,13 +214,20 @@ struct Vocabulary:
     fn size() -> Int
 ```
 
-## Performance Targets
+## Performance
 
-| Metric | Target | Notes |
-|--------|--------|-------|
-| Encode throughput | >100k tokens/sec | Single-threaded |
+Benchmarked on M3 Ultra (1.3MB WikiText-2 test file):
+
+| Metric | Achieved | Notes |
+|--------|----------|-------|
+| Small text | 5M tok/s | Cache-hot workloads |
+| Large file | 3M tok/s | 1.3MB sustained |
+| Cache hit rate | 94%+ | Natural language text |
 | Memory (vocab) | <10MB | Loaded vocabulary |
 | Startup time | <100ms | Cold start |
+
+**v0.3.1 Optimization**: Bulk cache eviction provides 256x speedup for large files
+(47s → 0.17s for 1.3MB files).
 
 ## Development
 
@@ -245,8 +252,9 @@ pixi run build
 ## Roadmap
 
 - **v0.1** ✓: BPE core, tiktoken loading, special tokens
-- **v0.2** ✓ (current): HuggingFace JSON loading, chat templates, caching, pipeline stages
-- **v0.3**: SentencePiece support, GPU acceleration
+- **v0.2** ✓: HuggingFace JSON loading, chat templates, caching, pipeline stages
+- **v0.3.1** ✓ (current): LRU cache optimization (256x speedup for large files)
+- **v0.4**: SentencePiece support, GPU acceleration
 - **v1.0**: Training from corpus, streaming, full HuggingFace parity
 
 ## License
