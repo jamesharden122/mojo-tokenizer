@@ -216,17 +216,27 @@ fn encode_no_cache(self, text: String) -> List[Int]:
 ---
 
 ### Phase 2: Byte Trie for Direct Lookup
-**Estimated gain**: 2-3x
+**Status**: ❌ NOT VIABLE - Algorithm mismatch
 
-1. Create `src/byte_trie.mojo` with trie implementation
-2. Build trie from vocabulary during loading
-3. Add direct lookup path before BPE fallback
-4. Handle multi-token words gracefully
+**Implemented**: `src/byte_trie.mojo` with full trie data structure
 
-**Files to create/modify**:
-- `src/byte_trie.mojo` (new)
-- `src/bpe.mojo` - Integrate trie lookup
-- `src/formats/tiktoken.mojo` - Build trie during load
+**Problem discovered**: Trie lookup is fundamentally incompatible with BPE:
+- **Trie approach**: Greedy longest-match (like LZ78 compression)
+- **BPE approach**: Merge pairs according to merge order (not longest match)
+
+**Example of mismatch**:
+- Vocabulary has both "cat" (token 100) and "c"+"at" (tokens 50, 60)
+- Trie finds "cat" → returns 1 token
+- BPE might produce "c"+"at" → 2 tokens (if merge priority differs)
+- Result: Token count mismatch (374K vs 463K expected)
+
+**Why cache is better**: The word-level cache stores actual BPE results, so:
+- First encode of "cat": BPE runs, result cached (correct tokenization)
+- Second encode: Cache hit returns correct result
+- The 92% cache hit rate already eliminates most BPE work
+
+**Conclusion**: Phase 1's 6.2M tok/s with 92% cache hit rate is the optimal approach.
+Skip Phase 2 trie, proceed to Phase 4 SIMD for additional gains.
 
 ---
 
@@ -279,10 +289,10 @@ fn encode_no_cache(self, text: String) -> List[Int]:
 |-------|----------|--------|-------------|-------|
 | v0.3.1 | 3.0M tok/s | 3.0M tok/s | 58% | Baseline |
 | **Phase 1 (v0.4.0)** | 4.5M tok/s | **6.2M tok/s** | **119%** | **EXCEEDED tiktoken!** |
-| Phase 2 (trie) | 6.0M tok/s | - | - | Pending |
-| Phase 3 (hybrid) | 6.5M tok/s | - | - | Pending |
-| Phase 4 (SIMD) | 7.5M tok/s | - | - | Pending |
-| Phase 5 (optimized) | 8M+ tok/s | - | - | Pending |
+| Phase 2 (trie) | 6.0M tok/s | ❌ N/A | - | **Not viable** (algorithm mismatch) |
+| Phase 3 (hybrid) | 6.5M tok/s | - | - | Skip (Phase 1 sufficient) |
+| Phase 4 (SIMD) | 7.5M tok/s | - | - | Next target |
+| Phase 5 (optimized) | 8M+ tok/s | - | - | Future |
 
 **Phase 1 Results (2025-01-06):**
 - Cold cache: 6.5M tok/s
@@ -339,9 +349,10 @@ fn encode_no_cache(self, text: String) -> List[Int]:
 ## Success Criteria
 
 - [x] **Phase 1: Achieve 4M+ tok/s** ✓ Achieved 6.2M tok/s (155% of target!)
-- [x] **Phase 2: Achieve 5.5M+ tok/s** ✓ Already exceeded by Phase 1
+- [x] **Exceed tiktoken (5.2M tok/s)** ✓ Achieved 6.2M tok/s (119% of tiktoken!)
+- [ ] ~~Phase 2: Byte trie~~ ❌ Not viable (algorithm mismatch with BPE)
 - [x] **Phase 3: Achieve 6M+ tok/s** ✓ Already exceeded by Phase 1
-- [ ] Phase 4: Achieve 7M+ tok/s
+- [ ] Phase 4: Achieve 7M+ tok/s with SIMD acceleration
 - [ ] Phase 5: Achieve 8M+ tok/s with adaptive strategy
 
 ---
@@ -357,4 +368,6 @@ fn encode_no_cache(self, text: String) -> List[Int]:
 
 ## Changelog
 
+- **2025-01-06**: Phase 2 byte trie investigated, found not viable (BPE algorithm mismatch)
+- **2025-01-06**: Phase 1 zero-allocation achieved 6.2M tok/s (exceeds tiktoken by 19%)
 - **2025-01-06**: Initial plan created after v0.3.1 release (3M tok/s achieved)

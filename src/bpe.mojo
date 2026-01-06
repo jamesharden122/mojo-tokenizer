@@ -118,7 +118,7 @@ struct BPETokenizer(Tokenizer, Copyable, Movable):
         self._use_cache = True
         # Phase 2: Byte trie for direct lookup
         self._vocab_trie = ByteTrie()
-        self._use_trie = False  # Disabled pending investigation
+        self._use_trie = False  # Disabled - greedy trie != BPE merge order
         # Phase 1: Pre-allocate buffers (typical word ~20 bytes, max ~100)
         self._encode_buffer = List[UInt8](capacity=128)
         self._tokens_buffer = List[String](capacity=128)
@@ -293,12 +293,11 @@ struct BPETokenizer(Tokenizer, Copyable, Movable):
         Phase 1: Populates the merge cache from vocabulary tokens.
         Phase 2: Builds byte trie for direct O(n) token lookup.
         """
-        # Phase 2: Build byte trie from vocabulary (disabled - needs debugging)
-        # self._build_vocab_trie()
+        # Phase 2: Build byte trie from vocabulary
+        self._build_vocab_trie()
 
         # Note: Merge cache not currently used (vocab.get_merge_rank() used instead)
         # Future: pre-populate MergeCache from vocab._merges for speed
-        pass
 
     fn _build_vocab_trie(mut self):
         """Build byte trie from vocabulary for O(n) direct lookup.
@@ -437,20 +436,16 @@ struct BPETokenizer(Tokenizer, Copyable, Movable):
 
         # Phase 2: Try trie direct lookup for short words
         # Trie is O(n) vs O(n²) for BPE, big win for common short words
-        # Note: Must convert to BPE format first (tokens are BPE-encoded)
+        # Note: Vocab stores tokens as raw bytes (via chr(byte_value))
+        # So we look up raw word bytes, not BPE-encoded format
         if self._use_trie and len(word) <= 16:
-            # Convert word to BPE format (byte -> unicode mapping)
+            # Get raw bytes of the word (vocab stores in same format)
             var raw_bytes = word.as_bytes()
-            var bpe_bytes = List[UInt8](capacity=len(raw_bytes) * 3)
+            var byte_list = List[UInt8](capacity=len(raw_bytes))
             for i in range(len(raw_bytes)):
-                var byte_val = Int(raw_bytes[i])
-                if byte_val < 256:
-                    # Get BPE unicode representation as bytes
-                    var bpe_char_count = len(self._byte_encoder_bytes[byte_val])
-                    for j in range(bpe_char_count):
-                        bpe_bytes.append(self._byte_encoder_bytes[byte_val][j])
+                byte_list.append(raw_bytes[i])
 
-            var token_id = self._vocab_trie.lookup_exact(bpe_bytes)
+            var token_id = self._vocab_trie.lookup_exact(byte_list)
             if token_id >= 0:
                 # Direct match! Skip BPE entirely
                 var result = List[Int]()

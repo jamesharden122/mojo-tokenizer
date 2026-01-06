@@ -131,9 +131,15 @@ Warm cache: 6081 K tok/s
 
 Phase 1 already exceeds tiktoken. Additional optimizations can target 8M+ tok/s:
 
-1. **Phase 2: Byte Trie** - Direct byte sequence → token lookup
-2. **Phase 4: SIMD Acceleration** - Vectorized byte processing
+1. ~~**Phase 2: Byte Trie**~~ - ❌ Not viable (greedy trie ≠ BPE merge order)
+2. **Phase 4: SIMD Acceleration** - Vectorized byte processing (next target)
 3. **Phase 5: Architecture Options** - tiktoken-style no-cache path
+
+**Phase 2 Investigation Results (2025-01-06):**
+- Implemented `src/byte_trie.mojo` with full trie data structure
+- Found fundamental algorithm mismatch: trie does greedy longest-match, BPE does merge-order-based tokenization
+- Result: Token count mismatch (374K vs 463K expected)
+- Conclusion: Word-level cache (92% hit rate) is the optimal approach
 
 See [EFFICIENCY_PLAN.md](EFFICIENCY_PLAN.md) for detailed roadmap.
 
@@ -141,5 +147,6 @@ See [EFFICIENCY_PLAN.md](EFFICIENCY_PLAN.md) for detailed roadmap.
 
 ## Changelog
 
+- **2025-01-06**: Phase 2 byte trie investigated - not viable (algorithm mismatch)
 - **2025-01-06**: v0.4.0 Phase 1 - Achieved 6.2M tok/s (exceeds tiktoken!)
 - **2025-01-06**: v0.3.1 - Bulk cache eviction (256x speedup)
