@@ -27,3 +27,9 @@ venv/
 # Test artifacts
 .pytest_cache/
 coverage/
+
+# Benchmark data (downloaded files)
+benchmarks/data/
+
+# Built packages
+*.mojopkg

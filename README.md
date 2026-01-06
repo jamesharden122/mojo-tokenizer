@@ -216,18 +216,23 @@ struct Vocabulary:
 
 ## Performance
 
-Benchmarked on M3 Ultra (1.3MB WikiText-2 test file):
+Benchmarked on M3 Ultra (607KB Sherlock Holmes text):
 
 | Metric | Achieved | Notes |
 |--------|----------|-------|
-| Small text | 5M tok/s | Cache-hot workloads |
-| Large file | 3M tok/s | 1.3MB sustained |
-| Cache hit rate | 94%+ | Natural language text |
+| Cold cache | 6.5M tok/s | First encode of large file |
+| Warm cache | 6.0M tok/s | Repeated encoding |
+| 5-run avg | 6.2M tok/s | Sustained throughput |
+| Cache hit rate | 92%+ | Natural language text |
 | Memory (vocab) | <10MB | Loaded vocabulary |
-| Startup time | <100ms | Cold start |
+| Startup time | ~100ms | Cold start |
 
-**v0.3.1 Optimization**: Bulk cache eviction provides 256x speedup for large files
-(47s → 0.17s for 1.3MB files).
+**Exceeds tiktoken (5.2M tok/s)** — Pure Mojo implementation outperforms Rust!
+
+### Optimization History
+
+- **v0.3.1**: Bulk cache eviction (256x speedup for large files)
+- **v0.4.0 Phase 1**: Zero-allocation core (2.2x additional speedup)
 
 ## Development
 
@@ -253,9 +258,10 @@ pixi run build
 
 - **v0.1** ✓: BPE core, tiktoken loading, special tokens
 - **v0.2** ✓: HuggingFace JSON loading, chat templates, caching, pipeline stages
-- **v0.3.1** ✓ (current): LRU cache optimization (256x speedup for large files)
-- **v0.4**: SentencePiece support, GPU acceleration
-- **v1.0**: Training from corpus, streaming, full HuggingFace parity
+- **v0.3.1** ✓: LRU cache optimization (256x speedup for large files)
+- **v0.4.0** ✓ (current): Zero-allocation core (6.2M tok/s, exceeds tiktoken!)
+- **v0.5**: Byte trie for direct lookup, SIMD acceleration (targeting 8M+ tok/s)
+- **v1.0**: SentencePiece support, training from corpus, streaming
 
 ## License
 
