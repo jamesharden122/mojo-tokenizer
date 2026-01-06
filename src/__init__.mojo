@@ -66,6 +66,9 @@ from .formats import load_tiktoken, load_huggingface
 # Caching
 from .cache import TokenCache, MergeCache
 
+# Phase 2: Byte trie for direct lookup
+from .byte_trie import ByteTrie, TrieNode, TrieLookupResult
+
 # TODO: Re-enable these modules after fixing Mojo 0.25.7 compatibility
 # Chat templates - disabled due to compat issues
 # from .chat import ChatTemplate, ChatMessage, apply_chat_template
