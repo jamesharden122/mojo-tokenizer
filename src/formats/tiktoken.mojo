@@ -129,8 +129,8 @@ fn load_tiktoken(path: String) raises -> Tuple[Vocabulary, SpecialTokens]:
         var token_bytes = base64_decode(encoded_token)
         var token = bytes_to_string(token_bytes)
 
-        # Add to vocabulary
-        vocab.add_token(token, rank)
+        # Add to vocabulary with raw bytes (for trie building)
+        vocab.add_token_bytes(token, rank, token_bytes)
 
     return Tuple(vocab^, special^)
 

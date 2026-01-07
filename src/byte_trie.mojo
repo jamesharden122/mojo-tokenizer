@@ -163,6 +163,45 @@ struct ByteTrie(Movable, Copyable):
             last_match_len
         )
 
+    fn lookup_at_offset(self, input_bytes: List[UInt8], offset: Int) -> TrieLookupResult:
+        """
+        Look up a byte sequence starting at offset (zero-copy).
+
+        This is the fast path for encoding - avoids allocating a new list
+        for each lookup position.
+
+        Args:
+            input_bytes: The full byte sequence.
+            offset: Starting position for lookup.
+
+        Returns:
+            TrieLookupResult with found status, token_id, and match length.
+        """
+        var node_idx = 0  # Start at root
+        var last_match_id = -1
+        var last_match_len = 0
+
+        for i in range(offset, len(input_bytes)):
+            var byte_val = Int(input_bytes[i])
+            var child_idx = self.nodes[node_idx].children[byte_val]
+
+            if child_idx < 0:
+                # No more matches possible
+                break
+
+            node_idx = child_idx
+
+            # Check if this is a complete token
+            if self.nodes[node_idx].is_terminal:
+                last_match_id = self.nodes[node_idx].token_id
+                last_match_len = i - offset + 1
+
+        return TrieLookupResult(
+            last_match_id >= 0,
+            last_match_id,
+            last_match_len
+        )
+
     fn lookup_exact(self, input_bytes: List[UInt8]) -> Int:
         """
         Look up an exact byte sequence match.

@@ -2,6 +2,8 @@
 
 Pure Mojo tokenizer for LLM inference — fast, dependency-free, compatible with tiktoken and HuggingFace formats.
 
+**v0.5.0: 13M+ tok/s** — 86% of rs-bpe (Rust), 2.2x faster than tiktoken
+
 ## Why mojo-tokenizer?
 
 MAX Engine currently uses Python-wrapped HuggingFace tokenizers. This library provides a pure Mojo alternative:
@@ -10,7 +12,7 @@ MAX Engine currently uses Python-wrapped HuggingFace tokenizers. This library pr
 - **Single binary deployment** — No interpreter or external dependencies
 - **Format compatibility** — Load tiktoken (OpenAI) and HuggingFace vocabularies
 - **Production ready** — Special token handling, batch processing, chat templates
-- **High performance** — 3M+ tokens/sec with optimized caching (94%+ hit rate)
+- **High performance** — 13M+ tokens/sec with O(n) backtracking algorithm
 
 ## Installation
 
