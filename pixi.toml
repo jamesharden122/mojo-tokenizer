@@ -1,16 +1,21 @@
-[project]
+[workspace]
 name = "mojo-tokenizer"
 version = "0.1.0"
-description = "Pure Mojo tokenizer for LLM inference - BPE, tiktoken, HuggingFace compatible"
+description = "Explicit pure-Mojo BPE core for model-input token buffers"
 authors = ["Atsentia"]
 channels = ["conda-forge", "https://conda.modular.com/max"]
-platforms = ["osx-arm64", "linux-64"]
+platforms = ["linux-64"]
 
-[tasks]
-build = "mojo build src -o lib/mojo_tokenizer.mojopkg"
-test = "mojo run tests/test_tokenizer.mojo"
-format = "mojo format src/"
-example = "mojo run examples/basic_usage.mojo"
+[tasks.build]
+cmd = "mojo precompile -I .. src -o mojo_tokenizer.mojoc"
+
+[tasks.test]
+depends-on = ["build"]
+cmd = "mojo run -I . tests/test_tokenizer.mojo"
+
+[tasks.example]
+depends-on = ["build"]
+cmd = "mojo run -I . examples/basic_usage.mojo"
 
 [dependencies]
-max = ">=24.6,<26"
+mojo = ">=1.0.0b2,<2"

@@ -1,74 +1,60 @@
 # mojo-tokenizer
 
-High-performance BPE tokenizer for Mojo — 144M tok/s decoding, 3.1x faster than tiktoken.
+An explicit, pure-Mojo BPE tokenizer core for constructing model-input
+pipelines. Vocabularies and merge rules are supplied programmatically. Binary
+I/O types are provided by the sibling `read_bin` package; tokenizer-file and
+text loaders are not implemented yet.
 
-## Performance
+## Architecture
 
-| Implementation | Decoding | Encoding | vs tiktoken |
-|----------------|----------|----------|-------------|
-| **mojo-tokenizer** | **144 M/s** | **8.0 M/s** | **3.1x faster** |
-| rs-bpe (Rust) | 121 M/s | 10.0 M/s* | 2.6x faster |
-| tiktoken (Rust) | 47 M/s | 5.1 M/s | baseline |
+```text
+text
+  -> preprocessing
+  -> BPE encoder
+  -> token IDs
+  -> future model-input builder
+  -> named Int64 tensors
+```
 
-*rs-bpe raw BPE only; mojo-tokenizer includes full pretokenization pipeline.
+- `core` owns vocabulary storage, special tokens, BPE encoding, diagnostic
+  decoding, and private performance structures.
+- `preprocessing` owns normalization, pre-tokenization, token-sequence
+  post-processing, and scanning primitives.
+- `model_input` defines the future typed-buffer contract. Buffer construction,
+  padding, truncation, ONNX execution, and SurrealML integration are not yet
+  implemented.
+- Persistent model-input values use allocator-backed `Allocation[Int64]`
+  buffers; small shape metadata and temporary collections continue to use
+  `List`.
+- `io` exposes `read_bin` binary readers, writers, and structured I/O errors;
+  future text and vocabulary readers belong behind this boundary.
 
-Benchmarked on Apple Silicon (M3 Ultra), sherlock.txt (607KB, 143K tokens), 20 iterations.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for module boundaries.
 
-**[Full benchmarks and methodology →](https://atsentia.com/blog/fastest-ai-token-decoder-mojo-apple-silicon)**
-
-## Quick Start
+## Usage
 
 ```mojo
-from mojo_tokenizer import Tokenizer
+from mojo_tokenizer import BpeTokenizer, SpecialTokenSet, Vocabulary
 
-# Load OpenAI's o200k_base vocabulary (GPT-4o, gpt-oss)
-var tokenizer = Tokenizer.from_tiktoken("o200k_base")
+var vocabulary = Vocabulary()
+vocabulary.add_token("a", 0)
+vocabulary.add_token("b", 1)
+vocabulary.add_token("ab", 2)
+vocabulary.add_merge("ab", 0)
 
-# Encode text to tokens
-var tokens = tokenizer.encode("Hello, world!")
-print(tokens)  # [13225, 11, 2375, 0]
+var special_tokens = SpecialTokenSet()
+special_tokens.add("<eos>", 10)
 
-# Decode tokens back to text (144M tok/s)
-var text = tokenizer.decode(tokens)
-print(text)  # "Hello, world!"
+var tokenizer = BpeTokenizer(vocabulary, special_tokens)
+var token_ids = tokenizer.encode("ab<eos>")
 ```
 
-## Installation
+## Commands
 
 ```bash
-git clone https://github.com/atsentia/mojo-tokenizer.git
-cd mojo-tokenizer
-mojo run bench_comprehensive.mojo  # Verify performance
+pixi run build
+pixi run test
+pixi run example
 ```
-
-## Supported Formats
-
-| Format | Status | Models |
-|--------|--------|--------|
-| **o200k_base** | ✓ Verified | gpt-5.2, gpt-oss-120B/20B, GPT-4o |
-| cl100k_base | ✓ Verified | GPT-4, ChatGPT |
-| HuggingFace BPE | Experimental | Qwen, Llama, Mistral |
-
-## How It Works
-
-**FlatTokenStorage** — Decoding at 144M tok/s via contiguous byte array:
-```
-// Traditional: 100K pointer dereferences
-// FlatTokenStorage: Series of memcpy() calls
-memcpy(dest, flat_data + offsets[token_id], lengths[token_id])
-```
-
-**O(n) Backtracking BPE** — Single-pass encoding with precomputed merge tables (ported from rs-bpe).
-
-**PairCache1000** — O(1) array lookup for common token pairs (+21% encoding speedup).
-
-## License
 
 Apache 2.0
-
-## Links
-
-- [Blog post with full benchmarks](https://atsentia.com/blog/fastest-ai-token-decoder-mojo-apple-silicon)
-- [atsentia/mojo-contrib](https://github.com/atsentia/mojo-contrib) — Enterprise Mojo libraries
-- [tiktoken](https://github.com/openai/tiktoken) — OpenAI's tokenizer (reference)
-- [rs-bpe](https://github.com/rust-ml/rust-gems/tree/main/crates/bpe-openai) — Rust BPE (reference)

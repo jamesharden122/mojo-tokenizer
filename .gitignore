@@ -3,6 +3,7 @@
 *.so
 *.dylib
 *.mojopkg
+*.mojoc
 __pycache__/
 *.pyc
 .mojo_cache/
