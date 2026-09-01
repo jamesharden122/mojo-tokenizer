@@ -1,21 +1,29 @@
 [workspace]
 name = "mojo-tokenizer"
 version = "0.1.0"
-description = "Explicit pure-Mojo BPE core for model-input token buffers"
+description = "Explicit pure-Mojo BPE core with ONNX inference capture"
 authors = ["Atsentia"]
 channels = ["conda-forge", "https://conda.modular.com/max"]
 platforms = ["linux-64"]
 
+[tasks]
+fmt = "mojo format -l 125 src tests"
+
 [tasks.build]
-cmd = "mojo precompile -I .. src -o mojo_tokenizer.mojoc"
+cmd = "mojo precompile -I .. -I $CONDA_PREFIX/lib/mojo src -o mojo_tokenizer.mojoc"
 
 [tasks.test]
 depends-on = ["build"]
-cmd = "mojo run -I . tests/test_tokenizer.mojo"
+cmd = "mojo run -I . -I $CONDA_PREFIX/lib/mojo tests/test_tokenizer.mojo"
 
 [tasks.example]
 depends-on = ["build"]
-cmd = "mojo run -I . examples/basic_usage.mojo"
+cmd = "mojo run -I . -I $CONDA_PREFIX/lib/mojo examples/basic_usage.mojo"
+
+[tasks.benchmark-trie]
+depends-on = ["build"]
+cmd = "mojo run -I . -I $CONDA_PREFIX/lib/mojo benchmarks/byte_trie_dispatch.mojo"
 
 [dependencies]
-mojo = ">=1.0.0b2,<2"
+mojo = "==1.0.0"
+max = "==26.5.0"

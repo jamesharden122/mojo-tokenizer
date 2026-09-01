@@ -9,6 +9,8 @@ Based on performance best practices:
 - Move semantics where possible
 """
 
+from .spans import TokenSpan
+
 
 struct TokenCache(Movable):
     """
@@ -19,7 +21,7 @@ struct TokenCache(Movable):
     for natural language text.
     """
 
-    var _cache: Dict[String, List[Int]]
+    var _cache: Dict[String, List[TokenSpan]]
     var _access_order: List[String]  # For LRU eviction
     var _capacity: Int
     var _hits: Int
@@ -33,13 +35,13 @@ struct TokenCache(Movable):
             capacity: Maximum number of entries to cache.
                       Default 10000 covers most common words.
         """
-        self._cache = Dict[String, List[Int]]()
+        self._cache = Dict[String, List[TokenSpan]]()
         self._access_order = List[String]()
         self._capacity = capacity
         self._hits = 0
         self._misses = 0
 
-    def get(mut self, key: String) -> Optional[List[Int]]:
+    def get(mut self, key: String) -> Optional[List[TokenSpan]]:
         """
         Get cached token IDs for a word.
 
@@ -59,7 +61,7 @@ struct TokenCache(Movable):
         self._misses += 1
         return None
 
-    def put(mut self, key: String, var value: List[Int]):
+    def put(mut self, key: String, var value: List[TokenSpan]):
         """
         Cache token IDs for a word.
 
@@ -110,7 +112,7 @@ struct TokenCache(Movable):
 
     def clear(mut self):
         """Clear all cached entries."""
-        self._cache = Dict[String, List[Int]]()
+        self._cache = Dict[String, List[TokenSpan]]()
         self._access_order = List[String]()
         # Don't reset hit/miss counts
 
@@ -156,7 +158,7 @@ struct TokenCache(Movable):
             i -= 1
 
         # Rebuild cache with only kept keys
-        var new_cache = Dict[String, List[Int]]()
+        var new_cache = Dict[String, List[TokenSpan]]()
         for key in keep_keys.keys():
             try:
                 new_cache[key] = self._cache[key].copy()
@@ -245,15 +247,17 @@ struct MergeCache(Movable):
         var hash: UInt64 = 14695981039346656037  # FNV offset basis
         comptime FNV_PRIME: UInt64 = 1099511628211
 
+        var a_bytes = a.unsafe_ptr()
         for i in range(a.byte_length()):
-            hash ^= UInt64(ord(a[byte=i]))
+            hash ^= UInt64(a_bytes[unsafe_offset=i])
             hash *= FNV_PRIME
 
         hash ^= UInt64(0xFF)  # Separator
         hash *= FNV_PRIME
 
+        var b_bytes = b.unsafe_ptr()
         for i in range(b.byte_length()):
-            hash ^= UInt64(ord(b[byte=i]))
+            hash ^= UInt64(b_bytes[unsafe_offset=i])
             hash *= FNV_PRIME
 
         return hash

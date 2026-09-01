@@ -1,9 +1,10 @@
-"""
-Special token handling for tokenizers.
+"""Special token handling for tokenizers.
 
 Special tokens are tokens with specific meaning that should never be
 split during tokenization (e.g., [CLS], [SEP], <|endoftext|>, <s>, </s>).
 """
+
+from std.collections.interval import Interval
 
 
 struct SpecialToken(Copyable, Movable):
@@ -30,10 +31,25 @@ struct TextSegment(Copyable, Movable):
     var is_special: Bool
     """Whether this is a special token."""
 
+    var span: Interval[Int]
+    """The segment's half-open UTF-8 byte span in the input."""
+
     def __init__(out self, text: String, is_special: Bool):
         """Create a new text segment."""
         self.text = text
         self.is_special = is_special
+        self.span = Interval(0, text.byte_length())
+
+    def __init__(
+        out self,
+        text: String,
+        is_special: Bool,
+        span: Interval[Int],
+    ):
+        """Create a segment aligned to its original input bytes."""
+        self.text = text
+        self.is_special = is_special
+        self.span = span
 
 
 struct SpecialTokenSet(Copyable, Movable):
@@ -153,7 +169,7 @@ struct SpecialTokenSet(Copyable, Movable):
         # Simple approach: iterate through text looking for special tokens
         # TODO: Use a more efficient algorithm (e.g., Aho-Corasick)
         var current_pos = 0
-        var current_segment = String()
+        var current_segment_start = 0
 
         while current_pos < text.byte_length():
             var found_special = False
@@ -164,27 +180,53 @@ struct SpecialTokenSet(Copyable, Movable):
                 var token_text = token.text
                 var token_len = token_text.byte_length()
 
-                if current_pos + token_len <= text.byte_length():
-                    var candidate = String(text[byte=current_pos:current_pos + token_len])
-                    if candidate == token_text:
-                        # Found a special token
-                        if current_segment.byte_length() > 0:
-                            result.append(TextSegment(current_segment, is_special=False))
-                            current_segment = String()
-                        result.append(TextSegment(token_text, is_special=True))
-                        current_pos += token_len
-                        found_special = True
-                        break
+                if self._matches_at(text, token_text, current_pos):
+                    # Found a special token
+                    if current_pos > current_segment_start:
+                        result.append(
+                            TextSegment(
+                                String(text[byte=current_segment_start:current_pos]),
+                                is_special=False,
+                                span=Interval(current_segment_start, current_pos),
+                            )
+                        )
+                    result.append(
+                        TextSegment(
+                            token_text,
+                            is_special=True,
+                            span=Interval(current_pos, current_pos + token_len),
+                        )
+                    )
+                    current_pos += token_len
+                    current_segment_start = current_pos
+                    found_special = True
+                    break
 
             if not found_special:
-                current_segment += String(text[byte=current_pos])
                 current_pos += 1
 
         # Add any remaining ordinary text
-        if current_segment.byte_length() > 0:
-            result.append(TextSegment(current_segment, is_special=False))
+        if current_segment_start < text.byte_length():
+            result.append(
+                TextSegment(
+                    String(text[byte = current_segment_start : text.byte_length()]),
+                    is_special=False,
+                    span=Interval(current_segment_start, text.byte_length()),
+                )
+            )
 
         return result^
+
+    def _matches_at(self, text: String, token: String, byte_offset: Int) -> Bool:
+        var token_len = token.byte_length()
+        if byte_offset + token_len > text.byte_length():
+            return False
+        var source = text.unsafe_ptr()
+        var target = token.unsafe_ptr()
+        for i in range(token_len):
+            if source[unsafe_offset=byte_offset + i] != target[unsafe_offset=i]:
+                return False
+        return True
 
     def clear(mut self):
         """Clear all special tokens."""

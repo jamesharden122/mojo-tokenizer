@@ -4,6 +4,7 @@
 *.dylib
 *.mojopkg
 *.mojoc
+.pixi/
 __pycache__/
 *.pyc
 .mojo_cache/
@@ -28,9 +29,8 @@ venv/
 # Test artifacts
 .pytest_cache/
 coverage/
+*.onnx
+*.surml
 
 # Benchmark data (downloaded files)
 benchmarks/data/
-
-# Built packages
-*.mojopkg

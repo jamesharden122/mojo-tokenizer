@@ -139,6 +139,31 @@ struct Vocabulary(Copyable, Movable):
         """Check if a token ID has raw bytes stored."""
         return id >= 0 and id < len(self._id_to_bytes) and len(self._id_to_bytes[id]) > 0
 
+    def get_byte_length(self, id: Int) -> Int:
+        """Return the exact byte length used by the vocabulary trie."""
+        if self.has_bytes(id):
+            return len(self._id_to_bytes[id])
+        return self.get_text(id).byte_length()
+
+    def copy_token_bytes_to[
+        Capacity: Int
+    ](self, id: Int, mut destination: InlineArray[UInt8, Capacity],) -> Int:
+        """Copy one token's exact trie bytes into a caller-owned fixed buffer."""
+        if self.has_bytes(id):
+            var byte_length = len(self._id_to_bytes[id])
+            assert byte_length <= Capacity, "Token exceeds inline byte buffer capacity"
+            for i in range(byte_length):
+                destination[i] = self._id_to_bytes[id][i]
+            return byte_length
+
+        var token = self.get_text(id)
+        var byte_length = token.byte_length()
+        assert byte_length <= Capacity, "Token exceeds inline byte buffer capacity"
+        var source = token.unsafe_ptr()
+        for i in range(byte_length):
+            destination[i] = source[unsafe_offset=i]
+        return byte_length
+
     def add_merge(mut self, pair: String, rank: Int):
         """
         Add a BPE merge rule.

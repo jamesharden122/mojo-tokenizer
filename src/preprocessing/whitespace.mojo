@@ -8,10 +8,10 @@ Based on patterns from mojo-json benchmarks.
 comptime SIMD_WIDTH: Int = 16
 
 # Whitespace bytes
-comptime SPACE: UInt8 = 32    # ' '
-comptime TAB: UInt8 = 9       # '\t'
+comptime SPACE: UInt8 = 32  # ' '
+comptime TAB: UInt8 = 9  # '\t'
 comptime NEWLINE: UInt8 = 10  # '\n'
-comptime CR: UInt8 = 13       # '\r'
+comptime CR: UInt8 = 13  # '\r'
 
 
 @always_inline
@@ -29,8 +29,7 @@ def create_whitespace_mask(chunk: SIMD[DType.uint8, SIMD_WIDTH]) -> SIMD[DType.u
     """
     var mask = SIMD[DType.uint8, SIMD_WIDTH]()
 
-    comptime
-    for i in range(SIMD_WIDTH):
+    comptime for i in range(SIMD_WIDTH):
         var c = chunk[i]
         mask[i] = 1 if (c == SPACE or c == TAB or c == NEWLINE or c == CR) else 0
 
@@ -51,8 +50,7 @@ def skip_whitespace_simd(data: String, start: Int) -> Int:
     while pos + SIMD_WIDTH <= n:
         var chunk = SIMD[DType.uint8, SIMD_WIDTH]()
 
-        comptime
-        for i in range(SIMD_WIDTH):
+        comptime for i in range(SIMD_WIDTH):
             chunk[i] = UInt8(ord(data[byte=pos + i]))
 
         var ws_mask = create_whitespace_mask(chunk)
@@ -63,8 +61,7 @@ def skip_whitespace_simd(data: String, start: Int) -> Int:
             continue
 
         # Find first non-whitespace
-        comptime
-        for i in range(SIMD_WIDTH):
+        comptime for i in range(SIMD_WIDTH):
             if ws_mask[i] == 0:
                 return pos + i
 
@@ -94,8 +91,7 @@ def count_whitespace_simd(data: String) -> Int:
     while pos + SIMD_WIDTH <= n:
         var chunk = SIMD[DType.uint8, SIMD_WIDTH]()
 
-        comptime
-        for i in range(SIMD_WIDTH):
+        comptime for i in range(SIMD_WIDTH):
             chunk[i] = UInt8(ord(data[byte=pos + i]))
 
         var ws_mask = create_whitespace_mask(chunk)
@@ -145,11 +141,13 @@ def trim_whitespace(data: String) -> String:
 @always_inline
 def is_boundary_byte(code: UInt8) -> Bool:
     """Check if byte is a word boundary (space or punctuation)."""
-    return (code == 32 or  # space
-            (code >= 33 and code <= 47) or  # !"#$%&'()*+,-./
-            (code >= 58 and code <= 64) or  # :;<=>?@
-            (code >= 91 and code <= 96) or  # [\]^_`
-            (code >= 123 and code <= 126))  # {|}~
+    return (
+        code == 32
+        or (code >= 33 and code <= 47)  # space
+        or (code >= 58 and code <= 64)  # !"#$%&'()*+,-./
+        or (code >= 91 and code <= 96)  # :;<=>?@
+        or (code >= 123 and code <= 126)  # [\]^_`
+    )  # {|}~
 
 
 @always_inline
@@ -162,15 +160,14 @@ def create_boundary_mask(chunk: SIMD[DType.uint8, SIMD_WIDTH]) -> SIMD[DType.uin
     """
     var mask = SIMD[DType.uint8, SIMD_WIDTH]()
 
-    comptime
-    for i in range(SIMD_WIDTH):
+    comptime for i in range(SIMD_WIDTH):
         var c = chunk[i]
         # Check each boundary range
         var is_space = c == 32
-        var is_punct1 = c >= 33 and c <= 47   # !"#$%&'()*+,-./
-        var is_punct2 = c >= 58 and c <= 64   # :;<=>?@
-        var is_punct3 = c >= 91 and c <= 96   # [\]^_`
-        var is_punct4 = c >= 123 and c <= 126 # {|}~
+        var is_punct1 = c >= 33 and c <= 47  # !"#$%&'()*+,-./
+        var is_punct2 = c >= 58 and c <= 64  # :;<=>?@
+        var is_punct3 = c >= 91 and c <= 96  # [\]^_`
+        var is_punct4 = c >= 123 and c <= 126  # {|}~
         mask[i] = 1 if (is_space or is_punct1 or is_punct2 or is_punct3 or is_punct4) else 0
 
     return mask
@@ -200,8 +197,7 @@ def find_boundaries_simd(data: String, start: Int = 0) -> List[Int]:
         var chunk = SIMD[DType.uint8, SIMD_WIDTH]()
 
         # Load 16 bytes from string
-        comptime
-        for i in range(SIMD_WIDTH):
+        comptime for i in range(SIMD_WIDTH):
             chunk[i] = ptr[unsafe_offset=pos + i]
 
         var boundary_mask = create_boundary_mask(chunk)
@@ -209,8 +205,7 @@ def find_boundaries_simd(data: String, start: Int = 0) -> List[Int]:
         # Quick check: any boundaries in this chunk?
         if boundary_mask.reduce_add() > 0:
             # Find all boundary positions
-            comptime
-            for i in range(SIMD_WIDTH):
+            comptime for i in range(SIMD_WIDTH):
                 if boundary_mask[i] == 1:
                     boundaries.append(pos + i)
 
@@ -240,16 +235,14 @@ def find_first_boundary_simd(data: String, start: Int = 0) -> Int:
     while pos + SIMD_WIDTH <= n:
         var chunk = SIMD[DType.uint8, SIMD_WIDTH]()
 
-        comptime
-        for i in range(SIMD_WIDTH):
+        comptime for i in range(SIMD_WIDTH):
             chunk[i] = ptr[unsafe_offset=pos + i]
 
         var boundary_mask = create_boundary_mask(chunk)
 
         # Any boundaries?
         if boundary_mask.reduce_add() > 0:
-            comptime
-            for i in range(SIMD_WIDTH):
+            comptime for i in range(SIMD_WIDTH):
                 if boundary_mask[i] == 1:
                     return pos + i
 

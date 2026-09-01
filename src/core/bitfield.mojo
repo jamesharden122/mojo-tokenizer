@@ -1,206 +1,184 @@
-"""
-Internal bit field for O(1) operations in backtracking BPE.
+"""Allocation-backed reachability bit field for backtracking BPE."""
 
-Used to track reachable positions during backtracking encoding.
-All bits are initialized to 1 (all positions reachable initially).
+# Purpose
+# -------
+# Store one reachability flag per input-byte position while backtracking BPE
+# tokenization. A UInt64 stores 64 flags, so this uses roughly one bit per
+# position instead of one byte or more per Bool.
+#
+# The CPU implementation owns host Allocation[UInt64] storage and provides
+# set, clear, successor, and predecessor operations. BitFieldGpuOps is only a
+# future interface contract: no device allocation, kernel, or transfer is
+# implemented here.
 
-Ported from rs-bpe's bitfield.rs implementation.
-
-Usage:
-    var bf = BitField(100)  # 100 bits, all set to 1
-    print(bf.is_set(50))    # True
-    bf.clear(50)
-    print(bf.is_set(50))    # False
-    print(bf.successor(49)) # Next set bit after 49
-"""
+from std.memory.alloc import Allocation, Layout, alloc, dealloc
 
 
-struct BitField(Movable, Copyable):
-    """
-    Bit field with efficient predecessor/successor queries.
-
-    All bits initialized to 1. Supports:
-    - O(1) is_set check
-    - O(1) clear operation
-    - O(1) amortized successor/predecessor (scans at most ~128 bits)
-    """
-
-    var words: List[UInt64]
-    """Storage: 64 bits per word."""
-
-    var _num_bits: Int
-    """Total number of bits."""
-
-    def __init__(out self, bits: Int):
-        """
-        Create a bitfield with all bits set to 1.
-
-        Args:
-            bits: Number of bits to allocate.
-        """
-        self._num_bits = bits
-        var num_words = (bits + 63) // 64
-        self.words = List[UInt64](capacity=num_words)
-        # Initialize all bits to 1 (all positions reachable)
-        for _ in range(num_words):
-            self.words.append(~UInt64(0))  # All 1s
+trait BitFieldCpuOps:
+    """Synchronous host operations over a bit field."""
 
     def is_set(self, bit: Int) -> Bool:
-        """
-        Check if a bit is set.
-
-        Args:
-            bit: Bit position to check.
-
-        Returns:
-            True if bit is set (1), False otherwise.
-        """
-        var word_idx = bit // 64
-        var bit_idx = bit % 64
-        return (self.words[word_idx] & (UInt64(1) << UInt64(bit_idx))) != 0
+        ...
 
     def clear(mut self, bit: Int):
-        """
-        Clear a bit (set to 0).
-
-        Args:
-            bit: Bit position to clear.
-        """
-        var word_idx = bit // 64
-        var bit_idx = bit % 64
-        self.words[word_idx] &= ~(UInt64(1) << UInt64(bit_idx))
+        ...
 
     def set(mut self, bit: Int):
-        """
-        Set a bit (set to 1).
-
-        Args:
-            bit: Bit position to set.
-        """
-        var word_idx = bit // 64
-        var bit_idx = bit % 64
-        self.words[word_idx] |= UInt64(1) << UInt64(bit_idx)
+        ...
 
     def successor(self, bit: Int) -> Int:
-        """
-        Find the next set bit >= given position.
+        ...
 
-        This is used to find the next reachable position.
-        Assumes there is always a successor (caller's responsibility).
+    def predecessor(self, bit: Int) -> Int:
+        ...
 
-        Args:
-            bit: Starting position.
 
-        Returns:
-            Position of next set bit >= bit.
-        """
-        var word_idx = bit // 64
-        var bit_idx = bit % 64
+trait BitFieldGpuOps:
+    """Future device-operation boundary; no GPU implementation is provided."""
 
-        # Check current word from bit_idx onwards
-        var word = self.words[word_idx] >> UInt64(bit_idx)
+    def upload(mut self) raises:
+        ...
+
+    def clear_gpu(mut self, bit: Int) raises:
+        ...
+
+    def set_gpu(mut self, bit: Int) raises:
+        ...
+
+
+struct BitField(BitFieldCpuOps, Movable):
+    """A CPU bit field with allocation-owned UInt64 word storage."""
+
+    var words: Allocation[UInt64]
+    var _num_bits: Int
+
+    def __init__(out self, bits: Int):
+        assert bits > 0, "BitField requires at least one bit"
+        self._num_bits = bits
+        self.words = alloc(Layout[UInt64](count=(bits + 63) // 64))
+        var ptr = self.words.unsafe_ptr()
+        for index in range(self.words.layout().count()):
+            ptr.unsafe_offset(index).unsafe_write(~UInt64(0))
+
+    def __deinit__(deinit self):
+        dealloc(self.words^)
+
+    def is_set(self, bit: Int) -> Bool:
+        self._check_bit(bit)
+        var words = self.words.unsafe_span()
+        return (words[bit // 64] & (UInt64(1) << UInt64(bit % 64))) != 0
+
+    def clear(mut self, bit: Int):
+        self._check_bit(bit)
+        var words = self.words.unsafe_span()
+        words[bit // 64] &= ~(UInt64(1) << UInt64(bit % 64))
+
+    def set(mut self, bit: Int):
+        self._check_bit(bit)
+        var words = self.words.unsafe_span()
+        words[bit // 64] |= UInt64(1) << UInt64(bit % 64)
+
+    def reset_all(mut self):
+        """Restore every allocated reachability bit for scratch-buffer reuse."""
+        var words = self.words.unsafe_span()
+        for index in range(self.words.layout().count()):
+            words[index] = ~UInt64(0)
+
+    def successor(self, bit: Int) -> Int:
+        """Return the next set bit at or after ``bit``, or ``num_bits``."""
+
+        if bit < 0 or bit >= self._num_bits:
+            return self._num_bits
+        var word_index = bit // 64
+        var word = self.words.unsafe_span()[word_index] >> UInt64(bit % 64)
         if word != 0:
-            return _trailing_zeros(word) + bit
+            return bit + _trailing_zeros(word)
 
-        # Scan subsequent words
-        word_idx += 1
-        while word_idx < len(self.words):
-            var w = self.words[word_idx]
-            if w != 0:
-                return _trailing_zeros(w) + word_idx * 64
-            word_idx += 1
-
-        # Should not reach here if caller ensures successor exists
+        word_index += 1
+        var words = self.words.unsafe_span()
+        while word_index < self.words.layout().count():
+            word = words[word_index]
+            if word != 0:
+                var result = word_index * 64 + _trailing_zeros(word)
+                if result < self._num_bits:
+                    return result
+                break
+            word_index += 1
         return self._num_bits
 
     def predecessor(self, bit: Int) -> Int:
-        """
-        Find the previous set bit <= given position.
+        """Return the prior set bit at or before ``bit``, or ``-1``."""
 
-        This is used to find the previous reachable position during backtracking.
-        Assumes there is always a predecessor (caller's responsibility).
-
-        Args:
-            bit: Starting position.
-
-        Returns:
-            Position of previous set bit <= bit.
-        """
-        var word_idx = bit // 64
-        var bit_idx = bit % 64
-
-        # Check current word from bit_idx downwards
-        # Shift left to put our bit at position 63
-        var word = self.words[word_idx] << UInt64(63 - bit_idx)
+        if bit < 0:
+            return -1
+        var pos = min(bit, self._num_bits - 1)
+        var word_index = pos // 64
+        var word = self.words.unsafe_span()[word_index] << UInt64(63 - pos % 64)
         if word != 0:
-            return bit - _leading_zeros(word)
+            return pos - _leading_zeros(word)
 
-        # Scan previous words
-        while word_idx > 0:
-            word_idx -= 1
-            var w = self.words[word_idx]
-            if w != 0:
-                return word_idx * 64 + 63 - _leading_zeros(w)
-
-        # Should not reach here if caller ensures predecessor exists
-        return 0
+        var words = self.words.unsafe_span()
+        while word_index > 0:
+            word_index -= 1
+            word = words[word_index]
+            if word != 0:
+                return word_index * 64 + 63 - _leading_zeros(word)
+        return -1
 
     def num_bits(self) -> Int:
-        """Get total number of bits."""
         return self._num_bits
+
+    def _check_bit(self, bit: Int):
+        assert bit >= 0 and bit < self._num_bits, "BitField index out of bounds"
 
 
 @always_inline
 def _trailing_zeros(x: UInt64) -> Int:
-    """Count trailing zeros (position of lowest set bit)."""
     if x == 0:
         return 64
     var n = 0
-    var v = x
-    # Binary search for trailing zeros
-    if (v & 0xFFFFFFFF) == 0:
+    var value = x
+    if (value & 0xFFFFFFFF) == 0:
         n += 32
-        v >>= 32
-    if (v & 0xFFFF) == 0:
+        value >>= 32
+    if (value & 0xFFFF) == 0:
         n += 16
-        v >>= 16
-    if (v & 0xFF) == 0:
+        value >>= 16
+    if (value & 0xFF) == 0:
         n += 8
-        v >>= 8
-    if (v & 0xF) == 0:
+        value >>= 8
+    if (value & 0xF) == 0:
         n += 4
-        v >>= 4
-    if (v & 0x3) == 0:
+        value >>= 4
+    if (value & 0x3) == 0:
         n += 2
-        v >>= 2
-    if (v & 0x1) == 0:
+        value >>= 2
+    if (value & 0x1) == 0:
         n += 1
     return n
 
 
 @always_inline
 def _leading_zeros(x: UInt64) -> Int:
-    """Count leading zeros (64 - 1 - position of highest set bit)."""
     if x == 0:
         return 64
     var n = 0
-    var v = x
-    # Binary search for leading zeros
-    if (v & 0xFFFFFFFF00000000) == 0:
+    var value = x
+    if (value & 0xFFFFFFFF00000000) == 0:
         n += 32
-        v <<= 32
-    if (v & 0xFFFF000000000000) == 0:
+        value <<= 32
+    if (value & 0xFFFF000000000000) == 0:
         n += 16
-        v <<= 16
-    if (v & 0xFF00000000000000) == 0:
+        value <<= 16
+    if (value & 0xFF00000000000000) == 0:
         n += 8
-        v <<= 8
-    if (v & 0xF000000000000000) == 0:
+        value <<= 8
+    if (value & 0xF000000000000000) == 0:
         n += 4
-        v <<= 4
-    if (v & 0xC000000000000000) == 0:
+        value <<= 4
+    if (value & 0xC000000000000000) == 0:
         n += 2
-        v <<= 2
-    if (v & 0x8000000000000000) == 0:
+        value <<= 2
+    if (value & 0x8000000000000000) == 0:
         n += 1
     return n

@@ -8,9 +8,7 @@ struct TokenDecoder(Copyable, Movable):
     var _vocabulary: Vocabulary
     var _special_tokens: SpecialTokenSet
 
-    def __init__(
-        out self, vocabulary: Vocabulary, special_tokens: SpecialTokenSet
-    ):
+    def __init__(out self, vocabulary: Vocabulary, special_tokens: SpecialTokenSet):
         self._vocabulary = vocabulary.copy()
         self._special_tokens = special_tokens.copy()
 
@@ -43,11 +41,20 @@ struct TokenDecoder(Copyable, Movable):
                 result += chr(code)
                 i += 2
             elif first < 240 and i + 2 < len(result_bytes):
-                var code = ((Int(first) & 0x0F) << 12) | ((Int(result_bytes[i + 1]) & 0x3F) << 6) | (Int(result_bytes[i + 2]) & 0x3F)
+                var code = (
+                    ((Int(first) & 0x0F) << 12)
+                    | ((Int(result_bytes[i + 1]) & 0x3F) << 6)
+                    | (Int(result_bytes[i + 2]) & 0x3F)
+                )
                 result += chr(code)
                 i += 3
             elif i + 3 < len(result_bytes):
-                var code = ((Int(first) & 0x07) << 18) | ((Int(result_bytes[i + 1]) & 0x3F) << 12) | ((Int(result_bytes[i + 2]) & 0x3F) << 6) | (Int(result_bytes[i + 3]) & 0x3F)
+                var code = (
+                    ((Int(first) & 0x07) << 18)
+                    | ((Int(result_bytes[i + 1]) & 0x3F) << 12)
+                    | ((Int(result_bytes[i + 2]) & 0x3F) << 6)
+                    | (Int(result_bytes[i + 3]) & 0x3F)
+                )
                 result += chr(code)
                 i += 4
             else:

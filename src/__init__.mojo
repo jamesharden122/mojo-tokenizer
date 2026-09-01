@@ -1,18 +1,14 @@
-"""Explicit BPE tokenization components for model-input pipelines."""
+"""Explicit BPE tokenization components with ONNX tensor utilities."""
 
 from .core import (
     BpeTokenizer,
+    BytePatternSet,
     TokenDecoder,
     Vocabulary,
     SpecialTokenSet,
+    TokenSpan,
+    BacktrackScratch,
+    CpuBacktrackBatch,
 )
-from .model_input import (
-    ModelInputConfig,
-    NamedInt64Tensor,
-    TokenizedInputs,
-    ModelInputBuilder,
-    allocate_int64_buffer,
-    copy_int64_buffer,
-    destroy_int64_buffer,
-)
-from .io import Float32BinaryReader, Float32BinaryWriter, ReadBinErrors
+from .onnx_utils import OnnxTens, Tens2D
+from .training import BpeTrainer

@@ -1,59 +1,71 @@
 # Architecture
 
-The package has three explicit layers. Dependencies point inward toward core
-data structures; ONNX and SurrealML do not leak into tokenization.
+The package has four focused areas. Dependencies point inward toward core data
+structures; ONNX and downstream model runtimes do not leak into tokenization.
 
 ```text
 src/
   core/             BPE vocabulary, encoding, diagnostic decoding, internals
-  preprocessing/    text and token-sequence transformations
-  model_input/      future typed model-input contracts
-  io/               external data-source integrations
+  preprocessing/    internal byte-boundary helpers
+  training/         deterministic byte-level BPE vocabulary training
+  onnx_utils/       fixed-shape tensor staging for ONNX integration
 ```
 
 ## Core
 
 `BpeTokenizer` is the public encoding facade. It recognizes registered special
-tokens and delegates ordinary text to `BpeEncoder`.
+tokens, then optional deterministic byte-range patterns, and delegates
+remaining text to `BpeEncoder`. `encode()` retains the `List[Int]` contract;
+`encode_with_spans()` returns token IDs aligned to half-open UTF-8 byte offsets.
 
 `BpeEncoder` owns the BPE algorithm and its state. `Vocabulary` stores token
 mappings and merge metadata. Cache, trie, bitfield, and backtracking modules are
-internal implementation details rather than public workflow concepts.
+internal implementation details rather than public workflow concepts. Frozen
+byte-trie nodes refer to contiguous edge intervals. Exact bytes use singleton
+intervals; wide prefixes are promoted to per-prefix `IntervalTree` instances
+owned centrally by the trie.
 
-`TokenDecoder` is separate from the encoder because model-input construction is
+Its byte-to-Unicode table and merge working sets use `List` because they hold
+temporary or nonnumeric tokenizer state. The token cache stores relative
+`TokenSpan` results, while reusable backtracking slots retain allocation-backed
+token IDs and spans. Public callers can request `List[Int]` or
+`List[TokenSpan]`.
+
+`BytePatternSet` registers fixed-length sequences of non-overlapping byte
+intervals. Pattern IDs must already exist in `Vocabulary`; their canonical text
+is diagnostic output, so ranged pattern encoding is intentionally not
+source-reversible. Patterns are matched only on UTF-8 code-point boundaries.
+
+`TokenDecoder` is separate from the encoder because inference capture is
 encoding-focused. It remains available for diagnostics and round-trip tests.
 
-## Preprocessing
+## Internal boundary helpers
 
-Normalizers transform source text. Pre-tokenizers divide source text into
-model-defined pieces. Post-processors transform token sequences and add
-model-defined special-token arrangements. SIMD helpers live beside the stages
-that consume them.
+The BPE encoder uses the `preprocessing/whitespace.mojo` helpers to construct
+byte-boundary masks. Normalization, pre-tokenization, and model-specific
+post-processing are not exposed because they were disconnected prototypes and
+are not part of the current encoding pipeline.
 
-The current BPE facade retains its existing boundary splitting internally. A
-future behavior change may inject preprocessing stages explicitly, but this
-refactor does not alter that algorithm.
+## Training
 
-## Model input
+`BpeTrainer` constructs deterministic byte-level vocabularies from
+caller-provided strings. It stays separate from inference while sharing the
+core `Vocabulary` type.
 
-`ModelInputConfig`, `NamedInt64Tensor`, and `TokenizedInputs` define the future
-boundary between tokenization and model execution. Tensor values are owned by
-allocator-backed `Allocation[Int64]` buffers; `List` remains appropriate for
-small shape metadata and temporary token collections. `ModelInputBuilder`
-declares the construction interface.
+## ONNX utilities
 
-Padding, truncation, attention-mask generation, ONNX execution, and SurrealML
-serialization are deliberately not implemented yet.
+`OnnxTens` wraps caller-owned scalar spans as fixed batch and row views. Its
+batch path copies disjoint row ranges into a contiguous allocation in parallel;
+its vector path copies one row for low-latency request handling.
 
-## I/O
-
-`io` is the boundary for external tokenizer data sources. It currently exposes
-the sibling `read_bin` package's binary reader, writer, and error type. Text and
-vocabulary loaders can be added here once their data contracts are defined.
+This boundary currently stages typed tensor values only. ONNX `TensorProto`
+encoding, model construction, padding, masks, and model execution policy remain
+separate planned work.
 
 ## Public API
 
-The root package exports the encoding facade, vocabulary and special-token
-types, diagnostic decoder, model-input contracts, and the `read_bin` I/O types.
-Vocabularies are still supplied programmatically; tokenizer-file loaders and
-compatibility constructors are not implemented yet.
+The root package exports the encoding facade, vocabulary, special-token,
+byte-pattern, and token-span types, diagnostic decoder, ONNX tensor utilities,
+and deterministic BPE trainer. Vocabularies are still supplied
+programmatically; tokenizer-file loaders and compatibility constructors are
+not implemented yet.
